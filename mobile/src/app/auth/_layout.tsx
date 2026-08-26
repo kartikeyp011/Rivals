@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 
-export default function RootLayout() {
+export default function AuthLayout() {
   return (
     <Stack
       screenOptions={{
@@ -8,9 +8,8 @@ export default function RootLayout() {
         animation: 'slide_from_right',
       }}
     >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="sign-in" />
+      <Stack.Screen name="sign-up" />
     </Stack>
   );
 }
