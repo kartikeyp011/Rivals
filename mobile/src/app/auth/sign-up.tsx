@@ -8,9 +8,9 @@ export default function SignUpScreen() {
   const [name, setName] = useState('');
 
   const handleSignUp = () => {
-    // For now, just navigate to the main app
+    // For now, navigate to profile setup
     // Later this will connect to Supabase
-    router.replace('/(tabs)');
+    router.push('/auth/onboarding/profile-setup');
   };
 
   return (
