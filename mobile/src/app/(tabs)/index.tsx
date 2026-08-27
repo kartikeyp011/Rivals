@@ -2,14 +2,17 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getCoinState } from '@/state/coinState';
+import { getStreakState } from '@/state/streakState';
 
 export default function HomeScreen() {
     const [coins, setCoins] = useState(0);
     const [streak, setStreak] = useState(0);
 
     useEffect(() => {
-        const state = getCoinState();
-        setCoins(state.balance);
+        const coinState = getCoinState();
+        setCoins(coinState.balance);
+        const streakState = getStreakState();
+        setStreak(streakState.currentStreak);
     }, []);
 
     return (

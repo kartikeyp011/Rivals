@@ -13,6 +13,7 @@ export default function RootLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="arena" />
       <Stack.Screen name="coins" />
+      <Stack.Screen name="streak" />
     </Stack>
   );
 }

@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { rewardArenaCoins } from '@/state/coinState';
+import { updateStreak, getStreakState } from '@/state/streakState';
 
 export default function ArenaResultsScreen() {
   const params = useLocalSearchParams();
@@ -27,9 +28,15 @@ export default function ArenaResultsScreen() {
   
   const grade = getGrade();
   const [earnedCoins, setEarnedCoins] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
 
-  // Reward coins when results are shown
+  // Reward coins and update streak when results are shown
   useEffect(() => {
+    // Update streak
+    updateStreak();
+    const streakState = getStreakState();
+    setCurrentStreak(streakState.currentStreak);
+    // Reward coins
     const earned = rewardArenaCoins(totalScore, correctCount);
     setEarnedCoins(earned);
     console.log(`🎉 Earned ${earned} coins for Arena completion!`);
@@ -121,7 +128,7 @@ export default function ArenaResultsScreen() {
 
       {/* Streak Card */}
       <View style={styles.streakCard}>
-        <Text style={styles.streakText}>🔥 0 Day Streak</Text>
+        <Text style={styles.streakText}>🔥 {currentStreak} Day Streak</Text>
         <Text style={styles.streakSubtext}>Complete tomorrow's Arena to continue!</Text>
       </View>
 

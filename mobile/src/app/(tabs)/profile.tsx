@@ -2,13 +2,17 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getCoinState } from '@/state/coinState';
+import { getStreakState } from '@/state/streakState';
 
 export default function ProfileScreen() {
     const [coins, setCoins] = useState(0);
+    const [streak, setStreak] = useState(0);
 
     useEffect(() => {
-        const state = getCoinState();
-        setCoins(state.balance);
+        const coinState = getCoinState();
+        setCoins(coinState.balance);
+        const streakState = getStreakState();
+        setStreak(streakState.currentStreak);
     }, []);
 
     return (
@@ -26,8 +30,11 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
             </View>
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Streak</Text>
-                <Text style={styles.cardText}>0 days</Text>
+                <TouchableOpacity onPress={() => router.push('/streak/recovery' as any)}>
+                    <Text style={styles.cardTitle}>Streak</Text>
+                    <Text style={styles.cardText}>{streak} days</Text>
+                    <Text style={styles.cardSubtext}>Tap to manage →</Text>
+                </TouchableOpacity>
             </View>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Rivals+</Text>
