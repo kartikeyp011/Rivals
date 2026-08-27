@@ -1,17 +1,43 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
+import { supabase } from '../../../lib/supabase';
 
 const AVATARS = ['😊', '😎', '🤩', '🧠', '💪', '🦊', '🐉', '🚀', '🎯', '🏆'];
 
 export default function ProfileSetupScreen() {
-  const [name, setName] = useState('');
+  const params = useLocalSearchParams();
+  const [name, setName] = useState(typeof params.initialName === 'string' ? params.initialName : '');
   const [selectedAvatar, setSelectedAvatar] = useState('😊');
+  const [loading, setLoading] = useState(false);
 
-  const handleContinue = () => {
-    // For now, just navigate to starting coins
-    // Later this will save to Supabase
-    router.push('/auth/onboarding/starting-coins');
+  const handleContinue = async () => {
+    if (!name) return;
+
+    setLoading(true);
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setLoading(false);
+      Alert.alert('Error', 'Could not get authenticated user.');
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        display_name: name,
+        avatar_url: selectedAvatar,
+      })
+      .eq('id', user.id);
+
+    setLoading(false);
+
+    if (updateError) {
+      Alert.alert('Error updating profile', updateError.message);
+    } else {
+      router.push('/auth/onboarding/starting-coins');
+    }
   };
 
   return (
@@ -50,11 +76,15 @@ export default function ProfileSetupScreen() {
       </View>
 
       <TouchableOpacity 
-        style={[styles.continueButton, !name && styles.continueButtonDisabled]}
+        style={[styles.continueButton, (!name || loading) && styles.continueButtonDisabled]}
         onPress={handleContinue}
-        disabled={!name}
+        disabled={!name || loading}
       >
-        <Text style={styles.continueButtonText}>Continue</Text>
+        {loading ? (
+          <ActivityIndicator color="#ffffff" />
+        ) : (
+          <Text style={styles.continueButtonText}>Continue</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );

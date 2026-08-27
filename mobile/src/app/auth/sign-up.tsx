@@ -1,16 +1,37 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSignUp = () => {
-    // For now, navigate to profile setup
-    // Later this will connect to Supabase
-    router.push('/auth/onboarding/profile-setup');
+  const handleSignUp = async () => {
+    if (!email || !password || !name) {
+      Alert.alert('Error', 'Please fill out all fields');
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: 'mobile://auth/callback',
+      },
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign Up Error', error.message);
+    } else if (data.session) {
+      router.push({ pathname: '/auth/onboarding/profile-setup', params: { initialName: name } });
+    } else {
+      Alert.alert('Check your email', 'Please confirm your email address to continue.');
+    }
   };
 
   return (
@@ -59,8 +80,12 @@ export default function SignUpScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-          <Text style={styles.signUpButtonText}>Create Account</Text>
+        <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.signUpButtonText}>Create Account</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.divider}>

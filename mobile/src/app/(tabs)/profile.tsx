@@ -3,25 +3,56 @@ import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getCoinState } from '@/state/coinState';
 import { getStreakState } from '@/state/streakState';
+import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
     const [coins, setCoins] = useState(0);
     const [streak, setStreak] = useState(0);
+    const [displayName, setDisplayName] = useState<string>('Player Name');
+    const [avatarUrl, setAvatarUrl] = useState<string>('👤');
 
     useEffect(() => {
         const coinState = getCoinState();
         setCoins(coinState.balance);
         const streakState = getStreakState();
         setStreak(streakState.currentStreak);
+
+        async function fetchProfile() {
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    return;
+                }
+
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('display_name, avatar_url')
+                    .eq('id', user.id)
+                    .single();
+
+                if (!profileError && profile) {
+                    if (profile.display_name) {
+                        setDisplayName(profile.display_name);
+                    }
+                    if (profile.avatar_url) {
+                        setAvatarUrl(profile.avatar_url);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load profile data');
+            }
+        }
+
+        fetchProfile();
     }, []);
 
     return (
         <View style={styles.container}>
             <Text style={styles.title}>👤 Profile</Text>
             <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>👤</Text>
+                <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
             </View>
-            <Text style={styles.name}>Player Name</Text>
+            <Text style={styles.name}>{displayName || 'Player Name'}</Text>
             <View style={styles.card}>
                 <TouchableOpacity onPress={() => router.push('/coins/activity' as any)}>
                     <Text style={styles.cardTitle}>Coins</Text>

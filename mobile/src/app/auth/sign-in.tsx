@@ -1,15 +1,31 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSignIn = () => {
-    // For now, just navigate to the main app
-    // Later this will connect to Supabase
-    router.replace('/(tabs)');
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill out all fields');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign In Error', error.message);
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   return (
@@ -47,8 +63,12 @@ export default function SignInScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.signInButton} onPress={handleSignIn}>
-          <Text style={styles.signInButtonText}>Sign In</Text>
+        <TouchableOpacity style={styles.signInButton} onPress={handleSignIn} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.signInButtonText}>Sign In</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.divider}>
