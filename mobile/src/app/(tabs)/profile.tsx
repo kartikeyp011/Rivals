@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getCoinState } from '@/state/coinState';
 
@@ -18,8 +19,11 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.name}>Player Name</Text>
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Coins</Text>
-                <Text style={styles.coinAmount}>{coins}</Text>
+                <TouchableOpacity onPress={() => router.push('/coins/activity' as any)}>
+                    <Text style={styles.cardTitle}>Coins</Text>
+                    <Text style={styles.coinAmount}>{coins}</Text>
+                    <Text style={styles.cardSubtext}>Tap to view activity →</Text>
+                </TouchableOpacity>
             </View>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Streak</Text>
@@ -90,6 +94,11 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         color: '#fdcb6e',
+        marginTop: 4,
+    },
+    cardSubtext: {
+        color: '#666',
+        fontSize: 12,
         marginTop: 4,
     },
 });

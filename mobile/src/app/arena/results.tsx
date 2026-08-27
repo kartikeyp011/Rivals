@@ -1,5 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { rewardArenaCoins } from '@/state/coinState';
 
 export default function ArenaResultsScreen() {
   const params = useLocalSearchParams();
@@ -24,6 +26,14 @@ export default function ArenaResultsScreen() {
   };
   
   const grade = getGrade();
+  const [earnedCoins, setEarnedCoins] = useState(0);
+
+  // Reward coins when results are shown
+  useEffect(() => {
+    const earned = rewardArenaCoins(totalScore, correctCount);
+    setEarnedCoins(earned);
+    console.log(`🎉 Earned ${earned} coins for Arena completion!`);
+  }, []);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -98,6 +108,15 @@ export default function ArenaResultsScreen() {
             </Text>
           </View>
         </View>
+      </View>
+
+      {/* Coin Reward Card */}
+      <View style={styles.rewardCard}>
+        <Text style={styles.rewardEmoji}>🪙</Text>
+        <Text style={styles.rewardText}>Coins Earned!</Text>
+        <Text style={styles.rewardSubtext}>
+          +{earnedCoins} coins for completing the Arena
+        </Text>
       </View>
 
       {/* Streak Card */}
@@ -248,6 +267,29 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#2a2a5a',
     marginVertical: 4,
+  },
+  rewardCard: {
+    backgroundColor: '#1a1a3a',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#fdcb6e33',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  rewardEmoji: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  rewardText: {
+    color: '#fdcb6e',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  rewardSubtext: {
+    color: '#8888aa',
+    fontSize: 14,
+    marginTop: 4,
   },
   streakCard: {
     backgroundColor: '#1a1a3a',
