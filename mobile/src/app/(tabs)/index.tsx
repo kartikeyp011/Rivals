@@ -71,6 +71,30 @@ export default function HomeScreen() {
                     <Text style={styles.cardButtonText}>Play Now</Text>
                 </TouchableOpacity>
             </View>
+
+            <View style={styles.quickActions}>
+                <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => router.push('/(tabs)/leaderboards')}
+                >
+                    <Text style={styles.actionIcon}>🏆</Text>
+                    <Text style={styles.actionText}>Leaderboards</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => router.push('/(tabs)/friends')}
+                >
+                    <Text style={styles.actionIcon}>👥</Text>
+                    <Text style={styles.actionText}>Friends</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => router.push('/wagers')}
+                >
+                    <Text style={styles.actionIcon}>⚔️</Text>
+                    <Text style={styles.actionText}>Wagers</Text>
+                </TouchableOpacity>
+            </View>
         </View>
     );
 }
@@ -207,5 +231,29 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 16,
         letterSpacing: 0.5,
+    },
+    quickActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 24,
+        gap: 12,
+    },
+    actionButton: {
+        flex: 1,
+        backgroundColor: '#121224',
+        borderRadius: 16,
+        padding: 16,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#1f1f3a',
+    },
+    actionIcon: {
+        fontSize: 24,
+        marginBottom: 8,
+    },
+    actionText: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '600',
     },
 });

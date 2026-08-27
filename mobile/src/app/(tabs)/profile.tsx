@@ -37,6 +37,13 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
             </View>
             <View style={styles.card}>
+                <TouchableOpacity onPress={() => router.push('/wagers')}>
+                    <Text style={styles.cardTitle}>⚔️ Wagers</Text>
+                    <Text style={styles.cardText}>Challenge friends with coin wagers</Text>
+                    <Text style={styles.cardSubtext}>Tap to view →</Text>
+                </TouchableOpacity>
+            </View>
+            <View style={styles.card}>
                 <Text style={styles.cardTitle}>Rivals+</Text>
                 <Text style={styles.cardText}>Subscribe for premium benefits</Text>
             </View>

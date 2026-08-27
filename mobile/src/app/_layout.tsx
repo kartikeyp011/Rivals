@@ -14,6 +14,7 @@ export default function RootLayout() {
       <Stack.Screen name="arena" />
       <Stack.Screen name="coins" />
       <Stack.Screen name="streak" />
+      <Stack.Screen name="wagers" />
     </Stack>
   );
 }
