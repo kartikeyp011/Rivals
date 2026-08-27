@@ -1,6 +1,15 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import { getCoinState } from '@/state/coinState';
 
 export default function ProfileScreen() {
+    const [coins, setCoins] = useState(0);
+
+    useEffect(() => {
+        const state = getCoinState();
+        setCoins(state.balance);
+    }, []);
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>👤 Profile</Text>
@@ -10,14 +19,14 @@ export default function ProfileScreen() {
             <Text style={styles.name}>Player Name</Text>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Coins</Text>
-                <Text style={styles.coinAmount}>100</Text>
+                <Text style={styles.coinAmount}>{coins}</Text>
             </View>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Streak</Text>
                 <Text style={styles.cardText}>0 days</Text>
             </View>
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Rivalss+</Text>
+                <Text style={styles.cardTitle}>Rivals+</Text>
                 <Text style={styles.cardText}>Subscribe for premium benefits</Text>
             </View>
         </View>

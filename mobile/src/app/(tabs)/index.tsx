@@ -1,12 +1,29 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { getCoinState } from '@/state/coinState';
 
 export default function HomeScreen() {
+    const [coins, setCoins] = useState(0);
+
+    useEffect(() => {
+        const state = getCoinState();
+        setCoins(state.balance);
+    }, []);
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.title}>Home</Text>
-                <Text style={styles.subtitle}>Rivals — Daily Puzzles & Wagers</Text>
+                <View style={styles.headerTop}>
+                    <View>
+                        <Text style={styles.title}>Home</Text>
+                        <Text style={styles.subtitle}>Rivals — Daily Puzzles & Wagers</Text>
+                    </View>
+                    <View style={styles.coinBadge}>
+                        <Text style={styles.coinIcon}>🪙</Text>
+                        <Text style={styles.coinText}>{coins}</Text>
+                    </View>
+                </View>
             </View>
 
             <View style={styles.card}>
@@ -39,6 +56,30 @@ const styles = StyleSheet.create({
     },
     header: {
         marginBottom: 32,
+    },
+    headerTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    coinBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#1a1a3a',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#2a2a5a',
+    },
+    coinIcon: {
+        fontSize: 16,
+        marginRight: 6,
+    },
+    coinText: {
+        color: '#fdcb6e',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     title: {
         fontSize: 34,
