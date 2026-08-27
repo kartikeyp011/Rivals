@@ -1,55 +1,120 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
 export default function ArenaResultsScreen() {
+  const params = useLocalSearchParams();
+  
+  const wordPoints = parseInt(params.wordPoints as string) || 0;
+  const cipherPoints = parseInt(params.cipherPoints as string) || 0;
+  const numberPoints = parseInt(params.numberPoints as string) || 0;
+  const wordCorrect = params.wordCorrect === 'true';
+  const cipherCorrect = params.cipherCorrect === 'true';
+  const numberCorrect = params.numberCorrect === 'true';
+  
+  const totalScore = wordPoints + cipherPoints + numberPoints;
+  const correctCount = (wordCorrect ? 1 : 0) + (cipherCorrect ? 1 : 0) + (numberCorrect ? 1 : 0);
+  const maxPossibleScore = 100 + 150 + 200; // 450
+  const percentage = Math.round((totalScore / maxPossibleScore) * 100);
+  
+  const getGrade = () => {
+    if (percentage >= 80) return { label: '🏆 Excellent!', color: '#fdcb6e' };
+    if (percentage >= 60) return { label: '⭐ Great Job!', color: '#00b894' };
+    if (percentage >= 40) return { label: '💪 Keep Going!', color: '#6c5ce7' };
+    return { label: '📚 Practice More!', color: '#ff6b6b' };
+  };
+  
+  const grade = getGrade();
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🏆 Arena Complete!</Text>
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.scoreCard}>
-          <Text style={styles.scoreLabel}>Your Arena Score</Text>
-          <Text style={styles.scoreValue}>2,847</Text>
-          <View style={styles.scoreBreakdown}>
-            <View style={styles.roundScore}>
-              <Text style={styles.roundScoreLabel}>Word Duel</Text>
-              <Text style={styles.roundScoreValue}>950</Text>
-            </View>
-            <View style={styles.roundScore}>
-              <Text style={styles.roundScoreLabel}>Cipher Break</Text>
-              <Text style={styles.roundScoreValue}>1,247</Text>
-            </View>
-            <View style={styles.roundScore}>
-              <Text style={styles.roundScoreLabel}>Number Rush</Text>
-              <Text style={styles.roundScoreValue}>650</Text>
-            </View>
+      {/* Score Card */}
+      <View style={styles.scoreCard}>
+        <Text style={styles.gradeEmoji}>{grade.label}</Text>
+        <Text style={styles.scoreLabel}>Your Arena Score</Text>
+        <Text style={styles.scoreValue}>{totalScore}</Text>
+        <View style={styles.percentageContainer}>
+          <View style={styles.percentageBar}>
+            <View style={[styles.percentageFill, { width: `${percentage}%` }]} />
           </View>
+          <Text style={styles.percentageText}>{percentage}%</Text>
         </View>
-
-        <View style={styles.rankCard}>
-          <Text style={styles.rankTitle}>📊 Daily Rankings</Text>
-          <View style={styles.rankRow}>
-            <Text style={styles.rankLabel}>Friends Rank</Text>
-            <Text style={styles.rankValue}>#2</Text>
-          </View>
-          <View style={styles.rankRow}>
-            <Text style={styles.rankLabel}>Global Rank</Text>
-            <Text style={styles.rankValue}>#127</Text>
-          </View>
-        </View>
-
-        <View style={styles.streakCard}>
-          <Text style={styles.streakText}>🔥 0 Day Streak</Text>
-          <Text style={styles.streakSubtext}>Complete tomorrow's Arena to continue!</Text>
-        </View>
-
-        <TouchableOpacity style={styles.homeButton} onPress={() => router.replace('/(tabs)')}>
-          <Text style={styles.homeButtonText}>Return Home</Text>
-        </TouchableOpacity>
+        <Text style={styles.correctCount}>{correctCount} of 3 correct</Text>
       </View>
-    </View>
+
+      {/* Round Breakdown */}
+      <View style={styles.breakdownCard}>
+        <Text style={styles.breakdownTitle}>📊 Round Breakdown</Text>
+        
+        <View style={styles.roundRow}>
+          <View style={styles.roundInfo}>
+            <Text style={styles.roundIcon}>📝</Text>
+            <Text style={styles.roundName}>Word Duel</Text>
+          </View>
+          <View style={styles.roundResult}>
+            <Text style={[styles.roundPoints, wordCorrect ? styles.correct : styles.incorrect]}>
+              {wordPoints} pts
+            </Text>
+            <Text style={[styles.roundStatus, wordCorrect ? styles.correctText : styles.incorrectText]}>
+              {wordCorrect ? '✅' : '❌'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.roundRow}>
+          <View style={styles.roundInfo}>
+            <Text style={styles.roundIcon}>🔐</Text>
+            <Text style={styles.roundName}>Cipher Break</Text>
+          </View>
+          <View style={styles.roundResult}>
+            <Text style={[styles.roundPoints, cipherCorrect ? styles.correct : styles.incorrect]}>
+              {cipherPoints} pts
+            </Text>
+            <Text style={[styles.roundStatus, cipherCorrect ? styles.correctText : styles.incorrectText]}>
+              {cipherCorrect ? '✅' : '❌'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.roundRow}>
+          <View style={styles.roundInfo}>
+            <Text style={styles.roundIcon}>🔢</Text>
+            <Text style={styles.roundName}>Number Rush</Text>
+          </View>
+          <View style={styles.roundResult}>
+            <Text style={[styles.roundPoints, numberCorrect ? styles.correct : styles.incorrect]}>
+              {numberPoints} pts
+            </Text>
+            <Text style={[styles.roundStatus, numberCorrect ? styles.correctText : styles.incorrectText]}>
+              {numberCorrect ? '✅' : '❌'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Streak Card */}
+      <View style={styles.streakCard}>
+        <Text style={styles.streakText}>🔥 0 Day Streak</Text>
+        <Text style={styles.streakSubtext}>Complete tomorrow's Arena to continue!</Text>
+      </View>
+
+      {/* Buttons */}
+      <TouchableOpacity style={styles.homeButton} onPress={() => router.replace('/(tabs)')}>
+        <Text style={styles.homeButtonText}>🏠 Return Home</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.leaderboardButton} onPress={() => router.push('/(tabs)/leaderboards')}>
+        <Text style={styles.leaderboardButtonText}>🏆 View Leaderboards</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
@@ -58,21 +123,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0a0a1a',
   },
-  header: {
+  content: {
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 50,
+    paddingBottom: 40,
+  },
+  header: {
     alignItems: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#ffffff',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
   },
   scoreCard: {
     backgroundColor: '#1a1a3a',
@@ -80,8 +143,14 @@ const styles = StyleSheet.create({
     padding: 24,
     borderWidth: 1,
     borderColor: '#2a2a5a',
-    marginBottom: 16,
     alignItems: 'center',
+    marginBottom: 16,
+  },
+  gradeEmoji: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 4,
   },
   scoreLabel: {
     color: '#8888aa',
@@ -92,29 +161,34 @@ const styles = StyleSheet.create({
     color: '#fdcb6e',
     fontSize: 48,
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  scoreBreakdown: {
+  percentageContainer: {
     width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: '#2a2a5a',
-    paddingTop: 16,
+    marginBottom: 8,
   },
-  roundScore: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
+  percentageBar: {
+    height: 8,
+    backgroundColor: '#0a0a1a',
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  roundScoreLabel: {
+  percentageFill: {
+    height: '100%',
+    backgroundColor: '#6c5ce7',
+    borderRadius: 4,
+  },
+  percentageText: {
+    color: '#8888aa',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  correctCount: {
     color: '#8888aa',
     fontSize: 14,
   },
-  roundScoreValue: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  rankCard: {
+  breakdownCard: {
     backgroundColor: '#1a1a3a',
     borderRadius: 16,
     padding: 20,
@@ -122,25 +196,58 @@ const styles = StyleSheet.create({
     borderColor: '#2a2a5a',
     marginBottom: 16,
   },
-  rankTitle: {
+  breakdownTitle: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
   },
-  rankRow: {
+  roundRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    alignItems: 'center',
+    paddingVertical: 8,
   },
-  rankLabel: {
-    color: '#8888aa',
+  roundInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roundIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  roundName: {
+    color: '#ffffff',
     fontSize: 14,
   },
-  rankValue: {
-    color: '#6c5ce7',
+  roundResult: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roundPoints: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  correct: {
+    color: '#00b894',
+  },
+  incorrect: {
+    color: '#ff6b6b',
+  },
+  roundStatus: {
+    fontSize: 16,
+  },
+  correctText: {
+    color: '#00b894',
+  },
+  incorrectText: {
+    color: '#ff6b6b',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#2a2a5a',
+    marginVertical: 4,
   },
   streakCard: {
     backgroundColor: '#1a1a3a',
@@ -149,7 +256,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a5a',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   streakText: {
     color: '#ffffff',
@@ -166,10 +273,23 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
+    marginBottom: 10,
   },
   homeButtonText: {
     color: '#ffffff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  leaderboardButton: {
+    backgroundColor: '#1a1a3a',
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a5a',
+  },
+  leaderboardButtonText: {
+    color: '#8888aa',
+    fontSize: 16,
   },
 });

@@ -1,17 +1,30 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { setRoundCompleted } from '../../state/arenaState';
 
 export default function NumberRushScreen() {
   const [answer, setAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [points, setPoints] = useState(0);
+
+  // Correct answer: 12 and 15 (12 × 15 = 180, 12 + 15 = 27)
+  const correctAnswer = '12,15';
+  const sumTarget = 27;
+  const productTarget = 180;
 
   const handleSubmit = () => {
+    const userAnswer = answer.replace(/\s/g, '');
+    const correct = userAnswer === correctAnswer.replace(/\s/g, '');
+    setIsCorrect(correct);
+    setPoints(correct ? 200 : 0);
     setSubmitted(true);
   };
 
   const handleContinue = () => {
-    router.push('/arena');
+    setRoundCompleted('number', points, isCorrect);
+    router.replace('/arena');
   };
 
   return (
@@ -30,20 +43,20 @@ export default function NumberRushScreen() {
           <Text style={styles.puzzleTitle}>Solve the Number Puzzle</Text>
           
           <View style={styles.numberContainer}>
-            <Text style={styles.numberText}>? + ? = 42</Text>
+            <Text style={styles.numberText}>? + ? = {sumTarget}</Text>
+            <Text style={styles.numberText}>? × ? = {productTarget}</Text>
           </View>
 
-          <Text style={styles.hint}>Find two numbers that multiply to 180</Text>
+          <Text style={styles.hint}>Find two numbers that sum to {sumTarget} and multiply to {productTarget}</Text>
 
           {!submitted ? (
             <>
               <TextInput
                 style={styles.input}
-                placeholder="Type your answer..."
+                placeholder="e.g. 12,15"
                 placeholderTextColor="#555"
                 value={answer}
                 onChangeText={setAnswer}
-                keyboardType="numeric"
               />
               <TouchableOpacity 
                 style={[styles.submitButton, !answer && styles.submitButtonDisabled]}
@@ -55,9 +68,15 @@ export default function NumberRushScreen() {
             </>
           ) : (
             <View style={styles.resultContainer}>
-              <Text style={styles.resultEmoji}>✅</Text>
-              <Text style={styles.resultText}>Answer Submitted!</Text>
-              <Text style={styles.resultSubtext}>Waiting for validation...</Text>
+              <Text style={styles.resultEmoji}>{isCorrect ? '✅' : '❌'}</Text>
+              <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
+                {isCorrect ? 'Correct!' : 'Incorrect!'}
+              </Text>
+              {isCorrect ? (
+                <Text style={styles.resultSubtext}>+200 points earned!</Text>
+              ) : (
+                <Text style={styles.resultSubtext}>The correct answer was: {correctAnswer}</Text>
+              )}
               <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
                 <Text style={styles.continueButtonText}>Continue →</Text>
               </TouchableOpacity>
@@ -130,8 +149,9 @@ const styles = StyleSheet.create({
   },
   numberText: {
     color: '#ffffff',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
+    marginVertical: 4,
   },
   hint: {
     color: '#8888aa',
@@ -172,10 +192,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   resultText: {
-    color: '#ffffff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
+  },
+  correctText: {
+    color: '#00b894',
+  },
+  incorrectText: {
+    color: '#ff6b6b',
   },
   resultSubtext: {
     color: '#8888aa',

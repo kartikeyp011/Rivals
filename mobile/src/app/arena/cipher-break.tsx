@@ -1,17 +1,30 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { setRoundCompleted } from '../../state/arenaState';
 
 export default function CipherBreakScreen() {
   const [answer, setAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [points, setPoints] = useState(0);
+
+  // Caesar cipher - shift by 4
+  // "JRAEGS" shifted back 4 = "FNACO" 
+  const correctAnswer = 'FNACO';
+  const cipherText = 'J R A E G S';
 
   const handleSubmit = () => {
+    const userAnswer = answer.toUpperCase().trim();
+    const correct = userAnswer === correctAnswer;
+    setIsCorrect(correct);
+    setPoints(correct ? 150 : 0);
     setSubmitted(true);
   };
 
   const handleContinue = () => {
-    router.push('/arena');
+    setRoundCompleted('cipher', points, isCorrect);
+    router.replace('/arena');
   };
 
   return (
@@ -30,14 +43,14 @@ export default function CipherBreakScreen() {
           <Text style={styles.puzzleTitle}>Decode the Cipher</Text>
           
           <View style={styles.cipherContainer}>
-            <Text style={styles.cipherText}>J R A E G S</Text>
+            <Text style={styles.cipherText}>{cipherText}</Text>
           </View>
 
           <View style={styles.difficultyBadge}>
             <Text style={styles.difficultyText}>Medium</Text>
           </View>
 
-          <Text style={styles.hint}>Hint: Caesar shift by 4</Text>
+          <Text style={styles.hint}>Hint: Caesar shift by 4 (A→E, B→F, etc.)</Text>
 
           {!submitted ? (
             <>
@@ -59,9 +72,15 @@ export default function CipherBreakScreen() {
             </>
           ) : (
             <View style={styles.resultContainer}>
-              <Text style={styles.resultEmoji}>✅</Text>
-              <Text style={styles.resultText}>Answer Submitted!</Text>
-              <Text style={styles.resultSubtext}>Waiting for validation...</Text>
+              <Text style={styles.resultEmoji}>{isCorrect ? '✅' : '❌'}</Text>
+              <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
+                {isCorrect ? 'Correct!' : 'Incorrect!'}
+              </Text>
+              {isCorrect ? (
+                <Text style={styles.resultSubtext}>+150 points earned!</Text>
+              ) : (
+                <Text style={styles.resultSubtext}>The correct answer was: {correctAnswer}</Text>
+              )}
               <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
                 <Text style={styles.continueButtonText}>Continue →</Text>
               </TouchableOpacity>
@@ -190,10 +209,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   resultText: {
-    color: '#ffffff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
+  },
+  correctText: {
+    color: '#00b894',
+  },
+  incorrectText: {
+    color: '#ff6b6b',
   },
   resultSubtext: {
     color: '#8888aa',

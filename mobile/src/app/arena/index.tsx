@@ -1,27 +1,32 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getArenaState } from '../../state/arenaState';
 
 type Round = 'word' | 'cipher' | 'number';
-type RoundStatus = 'pending' | 'active' | 'completed';
 
 export default function ArenaScreen() {
-  const [rounds, setRounds] = useState<Record<Round, RoundStatus>>({
-    word: 'active',
-    cipher: 'pending',
-    number: 'pending',
-  });
+  const [rounds, setRounds] = useState(getArenaState());
+
+  // Refresh state when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = () => {};
+    return unsubscribe;
+  }, []);
+
+  // Refresh state every time the screen is shown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentState = getArenaState();
+      setRounds({ ...currentState });
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
 
   const roundNames: Record<Round, string> = {
     word: 'Word Duel',
     cipher: 'Cipher Break',
     number: 'Number Rush',
-  };
-
-  const roundPaths: Record<Round, string> = {
-    word: 'word-duel',
-    cipher: 'cipher-break',
-    number: 'number-rush',
   };
 
   const roundIcons: Record<Round, string> = {
@@ -30,16 +35,39 @@ export default function ArenaScreen() {
     number: '🔢',
   };
 
+  const roundRoutes: Record<Round, string> = {
+    word: '/arena/word-duel',
+    cipher: '/arena/cipher-break',
+    number: '/arena/number-rush',
+  };
+
   const handleStartRound = (round: Round) => {
-    const routeName = roundPaths[round] || round;
-    router.push(`/arena/${routeName}` as any);
+    const route = roundRoutes[round];
+    router.push(route as any);
   };
 
   const handleContinue = () => {
-    router.push('/arena/results');
+    const state = getArenaState();
+    router.push({
+      pathname: '/arena/results',
+      params: {
+        wordPoints: state.word.points,
+        cipherPoints: state.cipher.points,
+        numberPoints: state.number.points,
+        wordCorrect: String(state.word.isCorrect),
+        cipherCorrect: String(state.cipher.isCorrect),
+        numberCorrect: String(state.number.isCorrect),
+      }
+    });
   };
 
-  const allCompleted = Object.values(rounds).every(status => status === 'completed');
+  const allCompleted = Object.values(rounds).every(r => r.status === 'completed');
+  const completedCount = Object.values(rounds).filter(r => r.status === 'completed').length;
+
+  // Force refresh when component mounts
+  useEffect(() => {
+    setRounds({ ...getArenaState() });
+  }, []);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -53,10 +81,10 @@ export default function ArenaScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(Object.values(rounds).filter(s => s === 'completed').length / 3) * 100}%` }]} />
+          <View style={[styles.progressFill, { width: `${(completedCount / 3) * 100}%` }]} />
         </View>
         <Text style={styles.progressText}>
-          {Object.values(rounds).filter(s => s === 'completed').length} of 3 completed
+          {completedCount} of 3 completed
         </Text>
       </View>
 
@@ -67,14 +95,14 @@ export default function ArenaScreen() {
               <Text style={styles.roundNumber}>Round {index + 1}</Text>
               <View style={[
                 styles.roundStatus,
-                rounds[round] === 'completed' && styles.statusCompleted,
-                rounds[round] === 'active' && styles.statusActive,
-                rounds[round] === 'pending' && styles.statusPending,
+                rounds[round].status === 'completed' && styles.statusCompleted,
+                rounds[round].status === 'active' && styles.statusActive,
+                rounds[round].status === 'pending' && styles.statusPending,
               ]}>
                 <Text style={styles.roundStatusText}>
-                  {rounds[round] === 'completed' && '✅ Done'}
-                  {rounds[round] === 'active' && '▶ Active'}
-                  {rounds[round] === 'pending' && '⏳ Pending'}
+                  {rounds[round].status === 'completed' && '✅ Done'}
+                  {rounds[round].status === 'active' && '▶ Active'}
+                  {rounds[round].status === 'pending' && '⏳ Pending'}
                 </Text>
               </View>
             </View>
@@ -92,18 +120,18 @@ export default function ArenaScreen() {
               <TouchableOpacity
                 style={[
                   styles.roundButton,
-                  rounds[round] === 'pending' && styles.roundButtonDisabled,
-                  rounds[round] === 'completed' && styles.roundButtonCompleted,
+                  rounds[round].status === 'pending' && styles.roundButtonDisabled,
+                  rounds[round].status === 'completed' && styles.roundButtonCompleted,
                 ]}
                 onPress={() => {
-                  if (rounds[round] === 'pending') return;
+                  if (rounds[round].status === 'pending') return;
                   handleStartRound(round);
                 }}
-                disabled={rounds[round] === 'pending'}
+                disabled={rounds[round].status === 'pending'}
               >
                 <Text style={styles.roundButtonText}>
-                  {rounds[round] === 'completed' ? 'Review' :
-                    rounds[round] === 'active' ? 'Start' : 'Locked'}
+                  {rounds[round].status === 'completed' ? 'Review' : 
+                   rounds[round].status === 'active' ? 'Start' : 'Locked'}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -1,19 +1,34 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { setRoundCompleted } from '../../state/arenaState';
 
 export default function WordDuelScreen() {
+  // #region agent log
+  fetch('http://127.0.0.1:7833/ingest/af6d6571-6817-490e-94b4-07e56104faed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'53e95e'},body:JSON.stringify({sessionId:'53e95e',location:'word-duel.tsx:mount',message:'WordDuelScreen rendered',data:{importPath:'../../state/arenaState'},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
+  // #endregion
   const [answer, setAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [points, setPoints] = useState(0);
+  const [showFeedback, setShowFeedback] = useState(false);
+
+  // The correct answer for the puzzle
+  const correctAnswer = 'STARE';
+  const scrambled = 'E A R S T';
 
   const handleSubmit = () => {
-    // For now, just mark as submitted
-    // Later this will validate with backend
+    const userAnswer = answer.toUpperCase().trim();
+    const correct = userAnswer === correctAnswer;
+    setIsCorrect(correct);
+    setPoints(correct ? 100 : 0);
+    setShowFeedback(true);
     setSubmitted(true);
   };
 
   const handleContinue = () => {
-    router.push('/arena');
+    setRoundCompleted('word', points, isCorrect);
+    router.replace('/arena');
   };
 
   return (
@@ -32,10 +47,10 @@ export default function WordDuelScreen() {
           <Text style={styles.puzzleTitle}>Unscramble the Word</Text>
           
           <View style={styles.scrambledContainer}>
-            <Text style={styles.scrambledText}>E A R S T</Text>
+            <Text style={styles.scrambledText}>{scrambled}</Text>
           </View>
 
-          <Text style={styles.hint}>Hint: It's a common 5-letter word</Text>
+          <Text style={styles.hint}>Hint: It's a common 5-letter word meaning "to look fixedly"</Text>
 
           {!submitted ? (
             <>
@@ -57,9 +72,15 @@ export default function WordDuelScreen() {
             </>
           ) : (
             <View style={styles.resultContainer}>
-              <Text style={styles.resultEmoji}>✅</Text>
-              <Text style={styles.resultText}>Answer Submitted!</Text>
-              <Text style={styles.resultSubtext}>Waiting for validation...</Text>
+              <Text style={styles.resultEmoji}>{isCorrect ? '✅' : '❌'}</Text>
+              <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
+                {isCorrect ? 'Correct!' : 'Incorrect!'}
+              </Text>
+              {isCorrect ? (
+                <Text style={styles.resultSubtext}>+100 points earned!</Text>
+              ) : (
+                <Text style={styles.resultSubtext}>The correct answer was: {correctAnswer}</Text>
+              )}
               <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
                 <Text style={styles.continueButtonText}>Continue →</Text>
               </TouchableOpacity>
@@ -175,10 +196,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   resultText: {
-    color: '#ffffff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
+  },
+  correctText: {
+    color: '#00b894',
+  },
+  incorrectText: {
+    color: '#ff6b6b',
   },
   resultSubtext: {
     color: '#8888aa',
