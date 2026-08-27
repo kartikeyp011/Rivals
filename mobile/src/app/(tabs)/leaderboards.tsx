@@ -1,50 +1,298 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { useState, useEffect } from 'react';
+import { getLeaderboardData, getFriendsLeaderboard, getGlobalLeaderboard, getUserRank, refreshLeaderboards, LeaderboardEntry } from '@/state/leaderboardState';
+
+type LeaderboardType = 'friends' | 'global';
+type TimeType = 'daily' | 'allTime';
 
 export default function LeaderboardsScreen() {
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>🏆 Leaderboards</Text>
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Friends</Text>
-                <Text style={styles.cardText}>Daily • All-Time</Text>
-            </View>
-            <View style={styles.card}>
-                <Text style={styles.cardTitle}>Global</Text>
-                <Text style={styles.cardText}>Daily • All-Time</Text>
-            </View>
+  const [activeTab, setActiveTab] = useState<LeaderboardType>('friends');
+  const [timeType, setTimeType] = useState<TimeType>('daily');
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = () => {
+    const data = activeTab === 'friends' 
+      ? getFriendsLeaderboard(timeType)
+      : getGlobalLeaderboard(timeType);
+    setEntries(data);
+    const user = getUserRank(timeType);
+    setUserRank(user || null);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab, timeType]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    refreshLeaderboards();
+    loadData();
+    setRefreshing(false);
+  };
+
+  const getMedal = (rank: number) => {
+    if (rank === 1) return '🥇';
+    if (rank === 2) return '🥈';
+    if (rank === 3) return '🥉';
+    return `#${rank}`;
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>🏆 Leaderboards</Text>
+      </View>
+
+      {/* Tab Selector */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
+          onPress={() => setActiveTab('friends')}
+        >
+          <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
+            👥 Friends
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'global' && styles.activeTab]}
+          onPress={() => setActiveTab('global')}
+        >
+          <Text style={[styles.tabText, activeTab === 'global' && styles.activeTabText]}>
+            🌍 Global
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Time Selector */}
+      <View style={styles.timeContainer}>
+        <TouchableOpacity
+          style={[styles.timeTab, timeType === 'daily' && styles.activeTimeTab]}
+          onPress={() => setTimeType('daily')}
+        >
+          <Text style={[styles.timeText, timeType === 'daily' && styles.activeTimeText]}>
+            Today
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.timeTab, timeType === 'allTime' && styles.activeTimeTab]}
+          onPress={() => setTimeType('allTime')}
+        >
+          <Text style={[styles.timeText, timeType === 'allTime' && styles.activeTimeText]}>
+            All-Time
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* User Rank Card */}
+      {userRank && (
+        <View style={styles.userRankCard}>
+          <Text style={styles.userRankEmoji}>{userRank.avatar}</Text>
+          <View style={styles.userRankInfo}>
+            <Text style={styles.userRankName}>{userRank.name} (You)</Text>
+            <Text style={styles.userRankScore}>{userRank.score} pts</Text>
+          </View>
+          <View style={styles.userRankBadge}>
+            <Text style={styles.userRankBadgeText}>#{userRank.rank}</Text>
+          </View>
         </View>
-    );
+      )}
+
+      {/* Leaderboard List */}
+      <ScrollView
+        style={styles.list}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {entries.map((entry, index) => (
+          <View key={entry.id} style={[
+            styles.entry,
+            entry.isUser && styles.userEntry,
+            index === 0 && styles.firstEntry,
+          ]}>
+            <View style={styles.entryLeft}>
+              <Text style={styles.entryRank}>{getMedal(entry.rank)}</Text>
+              <Text style={styles.entryAvatar}>{entry.avatar}</Text>
+              <View style={styles.entryInfo}>
+                <Text style={[
+                  styles.entryName,
+                  entry.isUser && styles.userName
+                ]}>
+                  {entry.name}{entry.isUser ? ' (You)' : ''}
+                  {entry.isFriend && !entry.isUser && ' ⭐'}
+                </Text>
+                {entry.isFriend && !entry.isUser && (
+                  <Text style={styles.friendBadge}>Friend</Text>
+                )}
+              </View>
+            </View>
+            <Text style={styles.entryScore}>{entry.score}</Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#0a0a1a',
-        padding: 20,
-        paddingTop: 60,
-    },
-    title: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: '#ffffff',
-        marginBottom: 24,
-    },
-    card: {
-        backgroundColor: '#1a1a3a',
-        borderRadius: 16,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: '#2a2a5a',
-        marginBottom: 12,
-    },
-    cardTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#ffffff',
-    },
-    cardText: {
-        fontSize: 14,
-        color: '#aaaacc',
-        marginTop: 4,
-    },
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a1a',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#6c5ce7',
+  },
+  tabText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  activeTabText: {
+    color: '#ffffff',
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  timeTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#1a1a3a',
+  },
+  activeTimeTab: {
+    backgroundColor: '#6c5ce7',
+  },
+  timeText: {
+    color: '#666',
+    fontSize: 13,
+  },
+  activeTimeText: {
+    color: '#ffffff',
+  },
+  userRankCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a3a',
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#6c5ce7',
+    marginBottom: 16,
+  },
+  userRankEmoji: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  userRankInfo: {
+    flex: 1,
+  },
+  userRankName: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  userRankScore: {
+    color: '#8888aa',
+    fontSize: 14,
+  },
+  userRankBadge: {
+    backgroundColor: '#6c5ce7',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  userRankBadgeText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  list: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  entry: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a3a',
+  },
+  firstEntry: {
+    borderTopWidth: 1,
+    borderTopColor: '#1a1a3a',
+  },
+  userEntry: {
+    backgroundColor: '#1a1a3a',
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  entryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  entryRank: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+    width: 40,
+  },
+  entryAvatar: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  entryInfo: {
+    flex: 1,
+  },
+  entryName: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  userName: {
+    color: '#6c5ce7',
+    fontWeight: 'bold',
+  },
+  friendBadge: {
+    color: '#fdcb6e',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  entryScore: {
+    color: '#fdcb6e',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });

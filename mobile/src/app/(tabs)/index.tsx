@@ -5,6 +5,7 @@ import { getCoinState } from '@/state/coinState';
 
 export default function HomeScreen() {
     const [coins, setCoins] = useState(0);
+    const [streak, setStreak] = useState(0);
 
     useEffect(() => {
         const state = getCoinState();
@@ -24,6 +25,30 @@ export default function HomeScreen() {
                         <Text style={styles.coinText}>{coins}</Text>
                     </View>
                 </View>
+            </View>
+
+            <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                    <Text style={styles.statIcon}>🔥</Text>
+                    <Text style={styles.statValue}>{streak}</Text>
+                    <Text style={styles.statLabel}>Day Streak</Text>
+                </View>
+                <TouchableOpacity 
+                    style={styles.statCard}
+                    onPress={() => router.push('/(tabs)/leaderboards')}
+                >
+                    <Text style={styles.statIcon}>🏅</Text>
+                    <Text style={styles.statValue}>--</Text>
+                    <Text style={styles.statLabel}>Friends Rank</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={styles.statCard}
+                    onPress={() => router.push('/(tabs)/leaderboards')}
+                >
+                    <Text style={styles.statIcon}>🌍</Text>
+                    <Text style={styles.statValue}>--</Text>
+                    <Text style={styles.statLabel}>Global Rank</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.card}>
@@ -55,7 +80,7 @@ const styles = StyleSheet.create({
         paddingTop: 80,
     },
     header: {
-        marginBottom: 32,
+        marginBottom: 24,
     },
     headerTop: {
         flexDirection: 'row',
@@ -92,6 +117,36 @@ const styles = StyleSheet.create({
         color: '#818cf8',
         marginTop: 6,
         fontWeight: '500',
+    },
+    statsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 24,
+        gap: 12,
+    },
+    statCard: {
+        flex: 1,
+        backgroundColor: '#1a1a3a',
+        borderRadius: 16,
+        padding: 14,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#2a2a5a',
+    },
+    statIcon: {
+        fontSize: 20,
+        marginBottom: 4,
+    },
+    statValue: {
+        color: '#ffffff',
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 2,
+    },
+    statLabel: {
+        color: '#8888aa',
+        fontSize: 11,
+        textAlign: 'center',
     },
     card: {
         backgroundColor: '#121224',
