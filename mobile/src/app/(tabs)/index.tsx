@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 
 export default function HomeScreen() {
     return (
@@ -17,7 +18,11 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.cardText}>Word Duel • Cipher Break • Number Rush</Text>
                 
-                <TouchableOpacity style={styles.cardButton} activeOpacity={0.8}>
+                <TouchableOpacity 
+                    style={styles.cardButton} 
+                    activeOpacity={0.8}
+                    onPress={() => router.push('/arena')}
+                >
                     <Text style={styles.cardButtonText}>Play Now</Text>
                 </TouchableOpacity>
             </View>

@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 
-export default function RootLayout() {
+export default function ArenaLayout() {
   return (
     <Stack
       screenOptions={{
@@ -9,9 +9,10 @@ export default function RootLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="arena" />
+      <Stack.Screen name="word-duel" />
+      <Stack.Screen name="cipher-break" />
+      <Stack.Screen name="number-rush" />
+      <Stack.Screen name="results" />
     </Stack>
   );
 }
