@@ -1,37 +1,39 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Rivals",
+    "slug": "rivals",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "icon": "./assets/images/rivals-logo.png",
+    "scheme": "rivals",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kartikeyp011.rivals",
+      "icon": "./assets/images/rivals-logo.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/rivals-logo.png",
+        "backgroundColor": "#0a0a1a"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.mobile"
+      "package": "com.kartikeyp011.rivals",
+      "permissions": [],
+      "versionCode": 1
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/rivals-logo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#0a0a1a",
+          "image": "./assets/images/rivals-logo.png",
+          "resizeMode": "contain"
         }
       ]
     ],
@@ -42,7 +44,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "6d39a6a4-23ff-44bb-aff3-789870254dec"
+        "projectId": "59de9f91-14c9-4612-a48c-62caf9cae536"
       }
     }
   }
