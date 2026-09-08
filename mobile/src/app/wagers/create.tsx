@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getAcceptedFriends, Friend } from '@/state/friendState';
 import { createWager } from '@/state/wagerState';
-import { getCoinState } from '@/state/coinState';
+import { getCoinState, fetchUserWalletBalance } from '@/state/coinState';
 
 type WagerType = '1v1' | 'multi';
 type StakeAmount = 10 | 25 | 50;
@@ -13,11 +13,13 @@ export default function CreateWagerScreen() {
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [wagerType, setWagerType] = useState<WagerType>('1v1');
   const [stake, setStake] = useState<StakeAmount>(10);
-  const [coins, setCoins] = useState(0);
+  const [coins, setCoins] = useState(getCoinState().balance);
 
   useEffect(() => {
     setFriends(getAcceptedFriends());
-    setCoins(getCoinState().balance);
+    fetchUserWalletBalance().then((bal) => {
+      setCoins(bal);
+    });
   }, []);
 
   const toggleFriend = (friendId: string) => {

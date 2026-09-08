@@ -1,16 +1,20 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { getCoinState, CoinTransaction } from '@/state/coinState';
+import { getCoinState, fetchUserWalletBalance, fetchUserCoinTransactions, CoinTransaction } from '@/state/coinState';
 
 export default function CoinActivityScreen() {
   const [transactions, setTransactions] = useState<CoinTransaction[]>([]);
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(getCoinState().balance);
 
   useEffect(() => {
-    const state = getCoinState();
-    setBalance(state.balance);
-    setTransactions([...state.transactions].reverse()); // Show newest first
+    fetchUserWalletBalance().then((bal) => {
+      setBalance(bal);
+    });
+
+    fetchUserCoinTransactions().then((txs) => {
+      setTransactions([...txs]);
+    });
   }, []);
 
   const getTransactionIcon = (type: string) => {

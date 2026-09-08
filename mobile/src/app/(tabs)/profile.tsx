@@ -1,21 +1,23 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { getCoinState } from '@/state/coinState';
+import { getCoinState, fetchUserWalletBalance } from '@/state/coinState';
 import { getStreakState } from '@/state/streakState';
 import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
-    const [coins, setCoins] = useState(0);
+    const [coins, setCoins] = useState(getCoinState().balance);
     const [streak, setStreak] = useState(0);
     const [displayName, setDisplayName] = useState<string>('Player Name');
     const [avatarUrl, setAvatarUrl] = useState<string>('👤');
 
     useEffect(() => {
-        const coinState = getCoinState();
-        setCoins(coinState.balance);
         const streakState = getStreakState();
         setStreak(streakState.currentStreak);
+
+        fetchUserWalletBalance().then((balance) => {
+            setCoins(balance);
+        });
 
         async function fetchProfile() {
             try {

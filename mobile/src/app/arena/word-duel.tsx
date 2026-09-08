@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { setRoundCompleted } from '../../state/arenaState';
+import { getArenaState, setRoundCompleted } from '../../state/arenaState';
+import { supabase } from '../../lib/supabase';
 
 export default function WordDuelScreen() {
   // #region agent log
@@ -12,6 +13,8 @@ export default function WordDuelScreen() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [points, setPoints] = useState(0);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // The correct answer for the puzzle
   const correctAnswer = 'STARE';
@@ -26,9 +29,76 @@ export default function WordDuelScreen() {
     setSubmitted(true);
   };
 
-  const handleContinue = () => {
-    setRoundCompleted('word', points, isCorrect);
-    router.replace('/arena');
+  const handleContinue = async () => {
+    try {
+      setIsSaving(true);
+      setSaveError(null);
+
+      const state = getArenaState();
+      if (!state.arenaId || !state.attemptId) {
+        throw new Error('Arena session is invalid. Please restart the Arena.');
+      }
+
+      // 1. Fetch the correct puzzle for this round
+      const { data: puzzleData, error: puzzleError } = await supabase
+        .from('puzzles')
+        .select('id')
+        .eq('arena_id', state.arenaId)
+        .eq('puzzle_type', 'word_duel')
+        .single();
+
+      console.log('[Word Duel] arenaId:', state.arenaId);
+      console.log('[Word Duel] puzzleData:', puzzleData);
+      console.log('[Word Duel] puzzleError:', JSON.stringify(puzzleError, null, 2));
+
+      if (puzzleError || !puzzleData) {
+        throw new Error('Failed to fetch puzzle information.');
+      }
+
+      // 2. Check for an existing result
+      const { data: existingResult, error: checkError } = await supabase
+        .from('arena_round_results')
+        .select('id')
+        .eq('attempt_id', state.attemptId)
+        .eq('puzzle_id', puzzleData.id)
+        .maybeSingle();
+
+      if (checkError) {
+        throw new Error('Failed to verify existing result.');
+      }
+
+      const resultData = {
+        attempt_id: state.attemptId,
+        puzzle_id: puzzleData.id,
+        round_status: 'completed',
+        points: points,
+        is_correct: isCorrect,
+        completed_at: new Date().toISOString()
+      };
+
+      if (existingResult) {
+        const { error: updateError } = await supabase
+          .from('arena_round_results')
+          .update(resultData)
+          .eq('id', existingResult.id);
+        
+        if (updateError) throw new Error('Failed to update result.');
+      } else {
+        const { error: insertError } = await supabase
+          .from('arena_round_results')
+          .insert(resultData);
+        
+        if (insertError) throw new Error('Failed to save result.');
+      }
+
+      setRoundCompleted('word', points, isCorrect);
+      router.replace('/arena');
+    } catch (err: any) {
+      console.error('Save error:', err);
+      setSaveError(err.message || 'An error occurred while saving.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -81,8 +151,17 @@ export default function WordDuelScreen() {
               ) : (
                 <Text style={styles.resultSubtext}>The correct answer was: {correctAnswer}</Text>
               )}
-              <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-                <Text style={styles.continueButtonText}>Continue →</Text>
+              {saveError && (
+                <Text style={styles.saveErrorText}>{saveError}</Text>
+              )}
+              <TouchableOpacity 
+                style={[styles.continueButton, isSaving && styles.continueButtonDisabled]} 
+                onPress={handleContinue}
+                disabled={isSaving}
+              >
+                <Text style={styles.continueButtonText}>
+                  {isSaving ? 'Saving...' : (saveError ? 'Retry →' : 'Continue →')}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -221,5 +300,15 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  continueButtonDisabled: {
+    backgroundColor: '#2a2a5a',
+  },
+  saveErrorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
 });

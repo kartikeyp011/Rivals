@@ -7,6 +7,8 @@ export interface RoundScore {
 }
 
 export interface ArenaState {
+  arenaId: string | null;
+  attemptId: string | null;
   word: RoundScore;
   cipher: RoundScore;
   number: RoundScore;
@@ -14,12 +16,19 @@ export interface ArenaState {
 
 // Simple global state for arena progress
 let arenaState: ArenaState = {
+  arenaId: null,
+  attemptId: null,
   word: { status: 'active', points: 0, isCorrect: false },
   cipher: { status: 'pending', points: 0, isCorrect: false },
   number: { status: 'pending', points: 0, isCorrect: false },
 };
 
 export const getArenaState = () => arenaState;
+
+export const setArenaIds = (arenaId: string, attemptId: string) => {
+  arenaState.arenaId = arenaId;
+  arenaState.attemptId = attemptId;
+};
 
 export const setRoundCompleted = (
   round: 'word' | 'cipher' | 'number',
@@ -40,6 +49,8 @@ export const setRoundCompleted = (
 
 export const resetArenaState = () => {
   arenaState = {
+    arenaId: null,
+    attemptId: null,
     word: { status: 'active', points: 0, isCorrect: false },
     cipher: { status: 'pending', points: 0, isCorrect: false },
     number: { status: 'pending', points: 0, isCorrect: false },
