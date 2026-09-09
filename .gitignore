@@ -28,3 +28,5 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+docs/ARENA_MULTIPLAYER_IMPLEMENTATION_PLAN.md
