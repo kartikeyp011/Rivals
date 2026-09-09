@@ -107,9 +107,9 @@ No real Rivals UI or gameplay implementation has started yet.
 
 ## Backend
 
-The `backend/` directory exists.
+The `backend/` directory structure, FastAPI skeleton, Dockerfile, and initial requirements have been established and validated.
 
-The FastAPI backend has not yet been implemented.
+Functional endpoints and game logic have not yet been implemented.
 
 ## Git
 
@@ -646,11 +646,14 @@ Completed:
 * Expo SDK 56 project
 * Expo app successfully launched
 * Baseline committed and pushed
+* Backend repository structure established and validated
 
 Current state:
 
 ```text
 Default Expo starter app
++
+FastAPI backend skeleton
 +
 Planning documents
 +
