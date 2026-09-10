@@ -17,16 +17,26 @@ ALTER TABLE wager_participants    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE streaks               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leaderboards          ENABLE ROW LEVEL SECURITY;
 
+-- Helper function to avoid infinite recursion in RLS policies
+CREATE OR REPLACE FUNCTION is_arena_participant(test_arena_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM arena_participants
+    WHERE arena_id = test_arena_id
+      AND user_id = auth.uid()
+  );
+$$;
 -- arenas
 CREATE POLICY "arenas_select_participant" ON arenas
   FOR SELECT TO authenticated
   USING (
     host_user_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM arena_participants ap
-      WHERE ap.arena_id = arenas.id
-        AND ap.user_id = auth.uid()
-    )
+    OR is_arena_participant(id)
   );
 
 -- arena_invites
@@ -41,22 +51,14 @@ CREATE POLICY "arena_invites_select" ON arena_invites
 CREATE POLICY "arena_participants_select" ON arena_participants
   FOR SELECT TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM arena_participants self
-      WHERE self.arena_id = arena_participants.arena_id
-        AND self.user_id = auth.uid()
-    )
+    is_arena_participant(arena_id)
   );
 
 -- arena_rounds
 CREATE POLICY "arena_rounds_select" ON arena_rounds
   FOR SELECT TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM arena_participants ap
-      WHERE ap.arena_id = arena_rounds.arena_id
-        AND ap.user_id = auth.uid()
-    )
+    is_arena_participant(arena_id)
   );
 
 -- arena_attempts
@@ -69,11 +71,7 @@ CREATE POLICY "arena_attempts_select" ON arena_attempts
       SELECT 1 FROM arena_rounds ar
       WHERE ar.id = arena_attempts.round_id
         AND ar.status = 'completed'
-        AND EXISTS (
-          SELECT 1 FROM arena_participants ap
-          WHERE ap.arena_id = ar.arena_id
-            AND ap.user_id = auth.uid()
-        )
+        AND is_arena_participant(ar.arena_id)
     )
   );
 
@@ -81,22 +79,14 @@ CREATE POLICY "arena_attempts_select" ON arena_attempts
 CREATE POLICY "arena_scores_select" ON arena_scores
   FOR SELECT TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM arena_participants ap
-      WHERE ap.arena_id = arena_scores.arena_id
-        AND ap.user_id = auth.uid()
-    )
+    is_arena_participant(arena_id)
   );
 
 -- arena_results
 CREATE POLICY "arena_results_select" ON arena_results
   FOR SELECT TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM arena_participants ap
-      WHERE ap.arena_id = arena_results.arena_id
-        AND ap.user_id = auth.uid()
-    )
+    is_arena_participant(arena_id)
   );
 
 -- profiles
@@ -118,10 +108,9 @@ CREATE POLICY "profiles_select_arena_participant" ON profiles
   FOR SELECT TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM arena_participants ap1
-      JOIN arena_participants ap2 ON ap1.arena_id = ap2.arena_id
-      WHERE ap1.user_id = auth.uid()
-        AND ap2.user_id = profiles.id
+      SELECT 1 FROM arena_participants ap
+      WHERE is_arena_participant(ap.arena_id)
+        AND ap.user_id = profiles.id
     )
   );
 
@@ -144,11 +133,7 @@ CREATE POLICY "coin_ledger_select" ON coin_ledger
 CREATE POLICY "wagers_select" ON wagers
   FOR SELECT TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM arena_participants ap
-      WHERE ap.arena_id = wagers.arena_id
-        AND ap.user_id = auth.uid()
-    )
+    is_arena_participant(arena_id)
   );
 
 -- wager_participants
@@ -158,9 +143,8 @@ CREATE POLICY "wager_participants_select" ON wager_participants
     user_id = auth.uid()
     OR EXISTS (
       SELECT 1 FROM wagers w
-      JOIN arena_participants ap ON ap.arena_id = w.arena_id
       WHERE w.id = wager_participants.wager_id
-        AND ap.user_id = auth.uid()
+        AND is_arena_participant(w.arena_id)
     )
   );
 

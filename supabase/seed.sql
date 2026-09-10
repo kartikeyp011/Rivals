@@ -34,34 +34,5 @@ VALUES
 -- Do NOT INSERT into auth.users directly in seed.sql.
 -- ============================================================
 
--- After creating test users via Auth, seed their profiles:
-INSERT INTO profiles (id, username, display_name)
-VALUES
-  ('b0000000-0000-0000-0000-000000000001', 'player_one', 'Player One'),
-  ('b0000000-0000-0000-0000-000000000002', 'player_two', 'Player Two')
-ON CONFLICT (id) DO NOTHING;
-
--- Initial coin balances (via coin_ledger instead of profiles, per Option A)
-INSERT INTO coin_ledger (id, user_id, type, reason, amount, balance_after, metadata)
-VALUES
-  (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'credit', 'admin_adjustment', 1000, 1000, '{"note": "Initial seed"}'),
-  (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000002', 'credit', 'admin_adjustment', 500, 500, '{"note": "Initial seed"}')
-ON CONFLICT DO NOTHING;
-
--- ============================================================
--- 3. TEST ARENA
--- ============================================================
-
-INSERT INTO arenas (id, host_user_id, status, max_participants, max_rounds)
-VALUES (
-  'c0000000-0000-0000-0000-000000000001',
-  'b0000000-0000-0000-0000-000000000001',
-  'pending',
-  2,
-  3
-);
-
-INSERT INTO arena_participants (arena_id, user_id, status)
-VALUES
-  ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'active'),
-  ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 'active');
+-- Since we cannot insert into auth.users, and profiles/arenas depend on it,
+-- we must create test users via API AFTER the stack starts, and insert their profiles then.
