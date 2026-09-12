@@ -877,3 +877,49 @@ The `backend/tests/test_custom_arena.py` suite was added and verified:
 ### 10. Known Issues / Preservations for Future
 - Ensure that the frontend UI actually hits `GET /api/v1/arenas/config/options` before rendering the limits and sliders in the Lobby UI to prevent stale hardcoded values.
 - Future steps MUST NOT bypass the `ArenaCreate` Pydantic bounds for internal generation logic unless a separate service-layer method is explicitly written.
+
+---
+
+## Step 8 — Arena Frontend Integration
+
+### 1. What Was Implemented
+Integrated the existing Expo mobile frontend with the fully functional Arena backend. Replaced client-side, authoritative mock game state with server-authoritative data fetched via Supabase-authenticated FastAPI endpoints.
+
+### 2. Files Changed/Created
+- **Created:** `mobile/src/lib/api.ts` - Centralized API client managing requests to `/api/v1/arenas`, attaching `Authorization` and `Idempotency-Key` headers.
+- **Created:** `mobile/src/app/arena/create.tsx` - Custom Arena creation UI pulling limits and categories dynamically from `/config/options`.
+- **Created:** `mobile/src/app/arena/play.tsx` - Generic trivia playing screen that renders server-provided `question_prompt` and `question_options`, replacing the hardcoded specific puzzle types (word-duel, cipher-break) due to database seed data compatibility.
+- **Modified:** `mobile/src/app/(tabs)/index.tsx` - Added the "Create Custom Arena" entry point.
+- **Modified:** `mobile/src/app/arena/index.tsx` - Transformed into an "Arena List" lobby that queries `GET /api/v1/arenas` instead of serving as a static dashboard.
+- **Modified:** `mobile/src/app/arena/[id].tsx` - Converted to dynamic Arena detail dashboard fetching actual arena configuration and round statuses.
+
+### 3. API Mappings Implemented
+- `getArenaConfigOptions()` -> `GET /api/v1/arenas/config/options`
+- `createArena(payload)` -> `POST /api/v1/arenas`
+- `getArena(arenaId)` -> `GET /api/v1/arenas/{arena_id}`
+- `startArena(arenaId)` -> `POST /api/v1/arenas/{arena_id}/start`
+- `getArenaRounds(arenaId)` -> `GET /api/v1/arenas/{arena_id}/rounds`
+- `submitAttempt(...)` -> `POST /api/v1/arenas/{arena_id}/rounds/{round_id}/attempts`
+
+*(Note: `startRound` was deliberately omitted from the API wrapper because backend logic automatically starts the first round when `start_arena` is called, and subsequent rounds are advanced internally by the background timeout or scoring service).*
+
+### 4. Authentication Approach
+- Requests extract the JWT natively via `supabase.auth.getSession()` inside `mobile/src/lib/api.ts`.
+- Valid Bearer tokens are attached to every FastAPI request.
+- Client state transitions are determined by HTTP status codes (e.g. `401`, `422`, `409`).
+
+### 5. Local vs Server-Authoritative State Decisions
+- **Local:** UI Loading states, selected multiple-choice options, form selections (difficulty, rounds), and client-side timer estimations (for UX only).
+- **Server:** Correct answers, points awarded, elapsed time validation, round advancement, and attempt finalization. The frontend NEVER locally determines if an answer is correct; it merely reacts to the `AttemptResponse` returned by the backend.
+
+### 6. Tests and Validation Results
+- **Frontend Typecheck:** `npx tsc --noEmit` executed successfully after resolving Expo Router strict path type errors (via type-casting dynamic routes).
+- **Backend Tests:** The automated backend suite encountered an infrastructure `OSError: [WinError 121] The semaphore timeout period has expired` indicating the Postgres database connection via asyncpg failed. The environment or Supabase instance was unavailable to complete the tests. This is marked as an infrastructure-level gap, not a code regression, as no backend code was altered in Step 8.
+- **Manual Verification:** Documented that end-to-end functionality could not be locally played out entirely due to the database connection timeout, but all requested static integration steps are strictly implemented in the frontend.
+
+### 7. Deferred to Steps 9-11
+- Coin locking/deduction, wager rendering, and explicit friends lobby interactions remain explicitly out of scope for Step 8 and are preserved for Steps 9-11.
+
+### 8. Known Limitations
+- The legacy mock screens (`word-duel.tsx`, `cipher-break.tsx`, `number-rush.tsx`) were not deleted to preserve history/reference, but are no longer active in the routing hierarchy. The app now routes to `play.tsx` to handle standard multiple-choice DB queries.
+- Database connectivity must be resolved by restarting the local Supabase containers or network adapter before further End-to-End game loop testing occurs.

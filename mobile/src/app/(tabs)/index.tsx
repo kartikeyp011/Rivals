@@ -70,6 +70,14 @@ export default function HomeScreen() {
                 >
                     <Text style={styles.cardButtonText}>Play Now</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity 
+                    style={[styles.cardButton, styles.secondaryCardButton]} 
+                    activeOpacity={0.8}
+                    onPress={() => router.push('/arena/create' as any)}
+                >
+                    <Text style={styles.secondaryCardButtonText}>Create Custom Arena</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.quickActions}>
@@ -228,6 +236,18 @@ const styles = StyleSheet.create({
     },
     cardButtonText: {
         color: '#ffffff',
+        fontWeight: '700',
+        fontSize: 16,
+        letterSpacing: 0.5,
+    },
+    secondaryCardButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#818cf8',
+        marginTop: 10,
+    },
+    secondaryCardButtonText: {
+        color: '#818cf8',
         fontWeight: '700',
         fontSize: 16,
         letterSpacing: 0.5,

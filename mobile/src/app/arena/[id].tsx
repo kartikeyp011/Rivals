@@ -1,0 +1,367 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { getArena, getArenaRounds, startArena } from '../../lib/api';
+
+export default function ArenaScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  
+  const [arena, setArena] = useState<any>(null);
+  const [rounds, setRounds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (id) {
+      loadData();
+    }
+  }, [id]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const arenaData = await getArena(id);
+      setArena(arenaData);
+      
+      const roundsData = await getArenaRounds(id);
+      // Sort rounds by round_number
+      setRounds(roundsData.sort((a: any, b: any) => a.round_number - b.round_number));
+    } catch (err: any) {
+      setError(err.message || 'Failed to load arena details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartArena = async () => {
+    try {
+      setActionLoading(true);
+      const idempotencyKey = Math.random().toString(36).substring(7);
+      await startArena(id, idempotencyKey);
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to start arena');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStartRound = (roundId: string) => {
+    router.push({
+      pathname: '/arena/play',
+      params: { arenaId: id, roundId }
+    } as any);
+  };
+
+  if (loading && !arena) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#6c5ce7" />
+      </View>
+    );
+  }
+
+  const isHost = true; // We could check user ID from session if needed
+  const isPending = arena?.status === 'pending';
+  const allCompleted = rounds.length > 0 && rounds.every(r => r.status === 'completed');
+  const completedCount = rounds.filter(r => r.status === 'completed').length;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Arena Lobby</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
+      {arena && (
+        <>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>{arena.category || 'Mixed'} Arena</Text>
+            <Text style={styles.infoText}>Status: <Text style={styles.highlight}>{arena.status}</Text></Text>
+            <Text style={styles.infoText}>Difficulty: {arena.difficulty || 'Any'}</Text>
+            <Text style={styles.infoText}>Time Limit: {arena.time_limit_seconds}s per round</Text>
+          </View>
+
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${(completedCount / Math.max(1, rounds.length)) * 100}%` }]} />
+            </View>
+            <Text style={styles.progressText}>
+              {completedCount} of {rounds.length} completed
+            </Text>
+          </View>
+
+          {isPending && (
+            <TouchableOpacity 
+              style={[styles.startArenaButton, actionLoading && styles.disabledButton]} 
+              onPress={handleStartArena}
+              disabled={actionLoading}
+            >
+              {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.startArenaButtonText}>Start Arena</Text>}
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.roundsContainer}>
+            {rounds.map((round) => (
+              <View key={round.id} style={styles.roundCard}>
+                <View style={styles.roundHeader}>
+                  <Text style={styles.roundNumber}>Round {round.round_number}</Text>
+                  <View style={[
+                    styles.roundStatus,
+                    round.status === 'completed' && styles.statusCompleted,
+                    round.status === 'active' && styles.statusActive,
+                    round.status === 'pending' && styles.statusPending,
+                  ]}>
+                    <Text style={styles.roundStatusText}>
+                      {round.status === 'completed' && '✅ Done'}
+                      {round.status === 'active' && '▶ Active'}
+                      {round.status === 'pending' && '⏳ Pending'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.roundBody}>
+                  <Text style={styles.roundIcon}>❓</Text>
+                  <View style={styles.roundInfo}>
+                    <Text style={styles.roundName}>{round.question_category}</Text>
+                    <Text style={styles.roundDesc}>Difficulty: {round.question_difficulty}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.roundButton,
+                      round.status !== 'active' && styles.roundButtonDisabled,
+                      round.status === 'completed' && styles.roundButtonCompleted,
+                    ]}
+                    onPress={() => handleStartRound(round.id)}
+                    disabled={round.status !== 'active'}
+                  >
+                    <Text style={styles.roundButtonText}>
+                      {round.status === 'completed' ? 'Review' : 
+                       round.status === 'active' ? 'Play' : 'Locked'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          {allCompleted && (
+            <TouchableOpacity style={styles.resultsButton} onPress={() => {}}>
+              <Text style={styles.resultsButtonText}>📊 View Results</Text>
+            </TouchableOpacity>
+          )}
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a1a',
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    paddingBottom: 40,
+  },
+  centerContainer: {
+    flex: 1,
+    backgroundColor: '#0a0a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backText: {
+    color: '#ffffff',
+    fontSize: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  placeholder: {
+    width: 40,
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    marginBottom: 20,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 14,
+  },
+  infoCard: {
+    backgroundColor: '#121224',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1f1f3a',
+    marginBottom: 24,
+  },
+  infoTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  infoText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  highlight: {
+    color: '#fdcb6e',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  progressContainer: {
+    marginBottom: 24,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: '#1a1a3a',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#6c5ce7',
+    borderRadius: 3,
+  },
+  progressText: {
+    color: '#8888aa',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  startArenaButton: {
+    backgroundColor: '#6c5ce7',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  startArenaButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  roundsContainer: {
+    gap: 16,
+  },
+  roundCard: {
+    backgroundColor: '#1a1a3a',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2a2a5a',
+  },
+  roundHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  roundNumber: {
+    color: '#8888aa',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  roundStatus: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  statusCompleted: {
+    backgroundColor: '#00b89433',
+  },
+  statusActive: {
+    backgroundColor: '#6c5ce733',
+  },
+  statusPending: {
+    backgroundColor: '#636e7233',
+  },
+  roundStatusText: {
+    fontSize: 11,
+    color: '#ffffff',
+  },
+  roundBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roundIcon: {
+    fontSize: 32,
+    marginRight: 14,
+  },
+  roundInfo: {
+    flex: 1,
+  },
+  roundName: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  roundDesc: {
+    color: '#8888aa',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  roundButton: {
+    backgroundColor: '#6c5ce7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  roundButtonDisabled: {
+    backgroundColor: '#2a2a5a',
+  },
+  roundButtonCompleted: {
+    backgroundColor: '#00b894',
+  },
+  roundButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  resultsButton: {
+    backgroundColor: '#fdcb6e',
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  resultsButtonText: {
+    color: '#0a0a1a',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+});

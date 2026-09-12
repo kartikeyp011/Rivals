@@ -1,150 +1,81 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { getArenaState } from '../../state/arenaState';
+import { getAuthHeaders } from '../../lib/api';
 
-type Round = 'word' | 'cipher' | 'number';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
-export default function ArenaScreen() {
-  const [rounds, setRounds] = useState(getArenaState());
+export default function ArenasListScreen() {
+  const [arenas, setArenas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Refresh state when screen comes into focus
   useEffect(() => {
-    const unsubscribe = () => {};
-    return unsubscribe;
+    fetchArenas();
   }, []);
 
-  // Refresh state every time the screen is shown
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentState = getArenaState();
-      setRounds({ ...currentState });
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
-
-  const roundNames: Record<Round, string> = {
-    word: 'Word Duel',
-    cipher: 'Cipher Break',
-    number: 'Number Rush',
+  const fetchArenas = async () => {
+    try {
+      setLoading(true);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_BASE_URL}/api/v1/arenas`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch arenas');
+      const data = await res.json();
+      setArenas(data);
+    } catch (err: any) {
+      setError(err.message || 'Error fetching arenas');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const roundIcons: Record<Round, string> = {
-    word: '📝',
-    cipher: '🔐',
-    number: '🔢',
-  };
-
-  const roundRoutes: Record<Round, string> = {
-    word: '/arena/word-duel',
-    cipher: '/arena/cipher-break',
-    number: '/arena/number-rush',
-  };
-
-  const handleStartRound = (round: Round) => {
-    const route = roundRoutes[round];
-    router.push(route as any);
-  };
-
-  const handleContinue = () => {
-    const state = getArenaState();
-    router.push({
-      pathname: '/arena/results',
-      params: {
-        wordPoints: state.word.points,
-        cipherPoints: state.cipher.points,
-        numberPoints: state.number.points,
-        wordCorrect: String(state.word.isCorrect),
-        cipherCorrect: String(state.cipher.isCorrect),
-        numberCorrect: String(state.number.isCorrect),
-      }
-    });
-  };
-
-  const allCompleted = Object.values(rounds).every(r => r.status === 'completed');
-  const completedCount = Object.values(rounds).filter(r => r.status === 'completed').length;
-
-  // Force refresh when component mounts
-  useEffect(() => {
-    setRounds({ ...getArenaState() });
-  }, []);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Daily Arena</Text>
+        <Text style={styles.title}>My Arenas</Text>
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(completedCount / 3) * 100}%` }]} />
+      {loading ? (
+        <ActivityIndicator size="large" color="#6c5ce7" style={{ marginTop: 40 }} />
+      ) : error ? (
+        <Text style={styles.errorText}>{error}</Text>
+      ) : arenas.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No arenas found.</Text>
+          <TouchableOpacity 
+            style={styles.createButton}
+            onPress={() => router.push('/arena/create' as any)}
+          >
+            <Text style={styles.createButtonText}>Create Custom Arena</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.progressText}>
-          {completedCount} of 3 completed
-        </Text>
-      </View>
-
-      <View style={styles.roundsContainer}>
-        {(['word', 'cipher', 'number'] as Round[]).map((round, index) => (
-          <View key={round} style={styles.roundCard}>
-            <View style={styles.roundHeader}>
-              <Text style={styles.roundNumber}>Round {index + 1}</Text>
-              <View style={[
-                styles.roundStatus,
-                rounds[round].status === 'completed' && styles.statusCompleted,
-                rounds[round].status === 'active' && styles.statusActive,
-                rounds[round].status === 'pending' && styles.statusPending,
-              ]}>
-                <Text style={styles.roundStatusText}>
-                  {rounds[round].status === 'completed' && '✅ Done'}
-                  {rounds[round].status === 'active' && '▶ Active'}
-                  {rounds[round].status === 'pending' && '⏳ Pending'}
-                </Text>
+      ) : (
+        <ScrollView contentContainerStyle={styles.list}>
+          {arenas.map(arena => (
+            <TouchableOpacity 
+              key={arena.id} 
+              style={styles.card}
+              onPress={() => router.push(`/arena/${arena.id}` as any)}
+            >
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{arena.category || 'Mixed'} Arena</Text>
+                <Text style={styles.statusBadge}>{arena.status}</Text>
               </View>
-            </View>
-
-            <View style={styles.roundBody}>
-              <Text style={styles.roundIcon}>{roundIcons[round]}</Text>
-              <View style={styles.roundInfo}>
-                <Text style={styles.roundName}>{roundNames[round]}</Text>
-                <Text style={styles.roundDesc}>
-                  {round === 'word' && 'Find the word from scrambled letters'}
-                  {round === 'cipher' && 'Decode the encrypted message'}
-                  {round === 'number' && 'Solve the number puzzle'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.roundButton,
-                  rounds[round].status === 'pending' && styles.roundButtonDisabled,
-                  rounds[round].status === 'completed' && styles.roundButtonCompleted,
-                ]}
-                onPress={() => {
-                  if (rounds[round].status === 'pending') return;
-                  handleStartRound(round);
-                }}
-                disabled={rounds[round].status === 'pending'}
-              >
-                <Text style={styles.roundButtonText}>
-                  {rounds[round].status === 'completed' ? 'Review' : 
-                   rounds[round].status === 'active' ? 'Start' : 'Locked'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {allCompleted && (
-        <TouchableOpacity style={styles.resultsButton} onPress={handleContinue}>
-          <Text style={styles.resultsButtonText}>📊 View Results</Text>
-        </TouchableOpacity>
+              <Text style={styles.cardDetails}>
+                Difficulty: {arena.difficulty || 'Any'} • Rounds: {arena.max_rounds}
+              </Text>
+              <Text style={styles.cardDate}>
+                Created: {new Date(arena.created_at).toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -152,17 +83,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a1a',
-  },
-  content: {
-    paddingHorizontal: 20,
+    padding: 20,
     paddingTop: 40,
-    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   backButton: {
     padding: 8,
@@ -179,113 +107,66 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  progressContainer: {
-    marginBottom: 24,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: '#1a1a3a',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#6c5ce7',
-    borderRadius: 3,
-  },
-  progressText: {
-    color: '#8888aa',
-    fontSize: 14,
-    marginTop: 8,
+  errorText: {
+    color: '#ef4444',
     textAlign: 'center',
+    marginTop: 20,
   },
-  roundsContainer: {
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 60,
+  },
+  emptyText: {
+    color: '#8888aa',
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  createButton: {
+    backgroundColor: '#6c5ce7',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  createButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  list: {
     gap: 16,
   },
-  roundCard: {
+  card: {
     backgroundColor: '#1a1a3a',
-    borderRadius: 16,
     padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2a2a5a',
   },
-  roundHeader: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  roundNumber: {
-    color: '#8888aa',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  roundStatus: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  statusCompleted: {
-    backgroundColor: '#00b89433',
-  },
-  statusActive: {
-    backgroundColor: '#6c5ce733',
-  },
-  statusPending: {
-    backgroundColor: '#636e7233',
-  },
-  roundStatusText: {
-    fontSize: 11,
+  cardTitle: {
     color: '#ffffff',
-  },
-  roundBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  roundIcon: {
-    fontSize: 32,
-    marginRight: 14,
-  },
-  roundInfo: {
-    flex: 1,
-  },
-  roundName: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  roundDesc: {
-    color: '#8888aa',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  roundButton: {
-    backgroundColor: '#6c5ce7',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  roundButtonDisabled: {
-    backgroundColor: '#2a2a5a',
-  },
-  roundButtonCompleted: {
-    backgroundColor: '#00b894',
-  },
-  roundButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  resultsButton: {
-    backgroundColor: '#fdcb6e',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  resultsButtonText: {
-    color: '#0a0a1a',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  statusBadge: {
+    color: '#fdcb6e',
+    fontSize: 12,
     fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  cardDetails: {
+    color: '#8888aa',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  cardDate: {
+    color: '#636e72',
+    fontSize: 12,
   },
 });
