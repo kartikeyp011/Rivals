@@ -1,0 +1,95 @@
+import uuid
+from typing import List
+from fastapi import APIRouter, Depends, Header, Request, BackgroundTasks
+from asyncpg import Connection
+
+from app.schemas.arena import ArenaCreate, ArenaResponse
+from app.services.arena_service import ArenaService
+from app.core.dependencies import get_current_user, get_db_connection
+from app.core.idempotency import IdempotencyManager
+
+router = APIRouter(prefix="/arenas", tags=["arenas"])
+
+def get_arena_service(conn: Connection = Depends(get_db_connection)) -> ArenaService:
+    return ArenaService(conn)
+
+@router.post("", response_model=ArenaResponse, status_code=201)
+async def create_arena(
+    data: ArenaCreate,
+    request: Request,
+    idempotency_key: str = Header(None, alias="Idempotency-Key"),
+    user_id: str = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+    service: ArenaService = Depends(get_arena_service)
+):
+    idem = IdempotencyManager(conn, user_id, idempotency_key)
+    
+    cached = await idem.get_cached_response(data.model_dump())
+    if cached:
+        return cached
+
+    await idem.lock_key(request.url.path, data.model_dump())
+    
+    # Process
+    arena = await service.create_arena(user_id, data)
+    
+    # Save Response
+    await idem.save_response(201, arena.model_dump(mode='json'))
+    return arena
+
+@router.get("", response_model=List[ArenaResponse])
+async def list_arenas(
+    user_id: str = Depends(get_current_user),
+    service: ArenaService = Depends(get_arena_service)
+):
+    return await service.get_arenas_for_user(user_id)
+
+@router.get("/{arena_id}", response_model=ArenaResponse)
+async def get_arena(
+    arena_id: uuid.UUID,
+    user_id: str = Depends(get_current_user),
+    service: ArenaService = Depends(get_arena_service)
+):
+    return await service.get_arena(arena_id, user_id)
+
+@router.post("/{arena_id}/start", response_model=ArenaResponse)
+async def start_arena(
+    arena_id: uuid.UUID,
+    request: Request,
+    idempotency_key: str = Header(None, alias="Idempotency-Key"),
+    user_id: str = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+    service: ArenaService = Depends(get_arena_service)
+):
+    idem = IdempotencyManager(conn, user_id, idempotency_key)
+    cached = await idem.get_cached_response(None)
+    if cached:
+        return cached
+
+    await idem.lock_key(request.url.path)
+    
+    arena = await service.start_arena(arena_id, user_id)
+    
+    await idem.save_response(200, arena.model_dump(mode='json'))
+    return arena
+
+@router.post("/{arena_id}/cancel", response_model=ArenaResponse)
+async def cancel_arena(
+    arena_id: uuid.UUID,
+    request: Request,
+    idempotency_key: str = Header(None, alias="Idempotency-Key"),
+    user_id: str = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection),
+    service: ArenaService = Depends(get_arena_service)
+):
+    idem = IdempotencyManager(conn, user_id, idempotency_key)
+    cached = await idem.get_cached_response(None)
+    if cached:
+        return cached
+
+    await idem.lock_key(request.url.path)
+    
+    arena = await service.cancel_arena(arena_id, user_id)
+    
+    await idem.save_response(200, arena.model_dump(mode='json'))
+    return arena
