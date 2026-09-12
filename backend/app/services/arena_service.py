@@ -128,5 +128,12 @@ class ArenaService:
             
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
-        updated = await self.arena_repo.update_arena_status(arena_id, 'cancelled', complete_time=now)
+        async with self.conn.transaction():
+            updated = await self.arena_repo.update_arena_status(arena_id, 'cancelled', complete_time=now)
+            
+            # Resolve any attached wager (which will refund everyone since status is cancelled)
+            from app.services.wager_service import WagerService
+            wager_service = WagerService(self.conn)
+            await wager_service.resolve_wager(arena_id)
+        
         return updated

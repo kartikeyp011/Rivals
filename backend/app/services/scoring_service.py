@@ -146,20 +146,26 @@ class ScoringService:
         
         # Write results
         rank = 1
-        for uid, total in sorted_users:
-            is_winner = (total == highest_score and total > 0) if len(sorted_users) > 1 else True # Solo player wins automatically
-            await self.result_repo.create_result(
-                arena_id=arena_id,
-                user_id=uid,
-                final_rank=rank,
-                total_score=total,
-                rounds_won=user_rounds_won[uid],
-                rounds_played=rounds_played,
-                is_winner=is_winner
-            )
-            # Mark participant as completed
-            await self.participant_repo.update_participant_status(arena_id, uid, 'completed')
-            rank += 1
-            
-        # Mark arena as completed
-        await self.arena_repo.update_arena_status(arena_id, 'completed')
+        async with self.conn.transaction():
+            for uid, total in sorted_users:
+                is_winner = (total == highest_score and total > 0) if len(sorted_users) > 1 else True # Solo player wins automatically
+                await self.result_repo.create_result(
+                    arena_id=arena_id,
+                    user_id=uid,
+                    final_rank=rank,
+                    total_score=total,
+                    rounds_won=user_rounds_won[uid],
+                    rounds_played=rounds_played,
+                    is_winner=is_winner
+                )
+                # Mark participant as completed
+                await self.participant_repo.update_participant_status(arena_id, uid, 'completed')
+                rank += 1
+                
+            # Mark arena as completed
+            await self.arena_repo.update_arena_status(arena_id, 'completed')
+
+            # Resolve any attached wager
+            from app.services.wager_service import WagerService
+            wager_service = WagerService(self.conn)
+            await wager_service.resolve_wager(arena_id)

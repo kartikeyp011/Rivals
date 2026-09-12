@@ -1023,3 +1023,54 @@ The backend was already functionally complete in scoring service and schema, but
 
 ### 7. Known Issues / Caveats
 - No caveats remain. Idempotency is fully stable, and timer expiry behaves as expected on both mobile and API layers.
+
+---
+
+## Step 11 — Coins, Wagers & Other Backend Systems
+
+### 1. What Was Implemented
+Implemented the foundational backend economy system, including server-authoritative coin balances, idempotent ledger transactions, and the complete wager lifecycle. Integrated wager resolution directly into the Arena completion game loop to ensure payouts and refunds are handled automatically and atomically.
+
+### 2. Files Changed/Created
+- **Created:** ackend/app/schemas/coin.py, ackend/app/schemas/wager.py
+- **Created:** ackend/app/repositories/coin_repository.py, ackend/app/repositories/wager_repository.py
+- **Created:** ackend/app/services/coin_service.py, ackend/app/services/wager_service.py
+- **Created:** ackend/app/routers/coins.py, ackend/app/routers/wagers.py
+- **Created:** ackend/tests/test_economy.py
+- **Modified:** ackend/app/main.py (Registered routers)
+- **Modified:** ackend/app/services/scoring_service.py (Trigger wager resolution on arena complete)
+- **Modified:** ackend/app/services/arena_service.py (Trigger wager resolution on arena cancel)
+
+### 3. Finalized Business Logic & Rules
+- **Wager Lifecycle:** open (accepting participants) -> settled (resolved with payouts) or oided (refunded/aborted).
+- **Payout Rules (Server-Authoritative):**
+  - **1v1:** Winner takes all. Tie refunds both.
+  - **3+ Players:** 1st place takes pot minus 2nd place's original stake. 2nd place gets original stake back. Tie for 1st or 2nd refunds everyone.
+  - **Balance Conservation:** Debits equal credits. Payouts and refunds exactly match the initial stakes locked.
+- **Refunds:** Wagers are voided and fully refunded if the arena is cancelled, if there are insufficient participants, or if a tie prevents a fair deterministic payout.
+
+### 4. Locking/Concurrency Strategy
+- **Row-Level Lock:** Every operation that mutates a user's coin balance acquires a PostgreSQL row-level lock on that user's profiles row (SELECT id FROM profiles WHERE id =  FOR UPDATE).
+- **Atomic Inserts:** The balance calculation (current_balance + amount) and coin_ledger insertion occur within the same transaction after acquiring the lock to guarantee consistency and prevent double-spend race conditions.
+- **Wager Locking:** Wager resolution locks the specific wager row (FOR UPDATE) to ensure a wager is never settled or refunded more than once.
+
+### 5. Security/Authorization
+- All economy endpoints use Depends(get_current_user).
+- Wager participation strictly verifies that the acceptor is an accepted friend of the wager creator (FriendStatus.accepted).
+- Clients never specify payout amounts or final balances. They only request wager creation/acceptance with valid coin stakes (10, 25, 50).
+
+### 6. Idempotency Behavior
+- Reused IdempotencyManager for all mutating endpoints (POST /wagers, POST /wagers/{id}/accept).
+- Prevents duplicate deductions if a client retries a network-failed acceptance request.
+
+### 7. Database Usage
+- Reused existing schemas coin_ledger, wagers, and wager_participants (20260909210008_coins.sql and 20260909210009_wagers.sql) exactly as designed. **No new migrations or tables were created.**
+
+### 8. Tests and Validation Results
+- Added ackend/tests/test_economy.py.
+- Tested insufficient funds (409 Conflict), successful coin deductions, idempotent acceptance, duplicate participation rejection, 1v1 payouts, ties, and arena cancellation refunds.
+- **Backend Tests:** 18/18 passed in the full regression suite.
+
+### 9. Known Limitations / Deferred Work
+- Frontend UI for coins, wagers, and balances is completely deferred to a future step to maintain focus on the backend foundation.
+- No default daily grants or purchases were implemented (in-app purchases are deferred to Phase 6).
