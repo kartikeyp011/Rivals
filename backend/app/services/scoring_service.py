@@ -160,8 +160,23 @@ class ScoringService:
                 )
                 # Mark participant as completed
                 await self.participant_repo.update_participant_status(arena_id, uid, 'completed')
-                rank += 1
                 
+                # Update streak and leaderboard
+                from app.services.streak_service import StreakService
+                from app.services.leaderboard_service import LeaderboardService
+                from datetime import datetime, timezone as dt_timezone
+                
+                now = datetime.now(dt_timezone.utc)
+                row = await self.conn.fetchrow("SELECT timezone FROM profiles WHERE id = $1", uid)
+                tz = row['timezone'] if row and row['timezone'] else 'UTC'
+                
+                streak_service = StreakService(self.conn)
+                await streak_service.update_streak(uid, now, tz)
+                
+                leaderboard_service = LeaderboardService(self.conn)
+                await leaderboard_service.record_score(uid, now, tz, total, is_winner)
+                
+                rank += 1
             # Mark arena as completed
             await self.arena_repo.update_arena_status(arena_id, 'completed')
 
