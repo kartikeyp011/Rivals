@@ -975,3 +975,13 @@ Implemented the Friends, Lobby, and Invites flows. This involved updating the da
 
 ### 8. Known Issues
 - Currently using polling `setInterval` in UI components for checking invites and state updates, as full Supabase Realtime subscriptions in the Expo app are out-of-scope for the basic integration, though the database is ready for them.
+
+### 9. Step 9 Completion Verification
+- **Migration Confirmed:** `20260909210017_friends_status.sql` is present and successfully applied.
+- **Database Schema Confirmed:** `friends` table includes `friend_status` enum (`pending`, `accepted`, `rejected`) and `status` column.
+- **Realtime Confirmed:** `friends`, `arena_participants`, `arena_invites` and `arena_attempts` are correctly part of the `supabase_realtime` publication.
+- **RLS Confirmed:** `friends_select` policy (`user_id = auth.uid() OR friend_id = auth.uid()`) is active. Server handles mutations.
+- **Friend Lifecycle Confirmed:** Verified that sending results in `pending`, accepting results in a reciprocal row and `accepted` status, rejecting updates the row to `rejected`, and removal drops both rows.
+- **Test Suite Confirmed:** `test_friends.py` and the entire regression suite (14 tests total) pass locally using the backend's `.env`.
+- **Frontend Typecheck Confirmed:** `npx tsc --noEmit` passes cleanly.
+- **Git State Confirmed:** Working tree is completely clean and the Step 9 commit is intact.
