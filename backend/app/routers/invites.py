@@ -35,7 +35,7 @@ async def create_invite(
     if cached:
         return cached
 
-    await idem.lock_key(request.url.path, data.model_dump())
+    await idem.lock_key(request.url.path, data.model_dump(mode='json'))
     
     invite = await service.create_invite(arena_id, user_id, data)
     

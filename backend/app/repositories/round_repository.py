@@ -9,7 +9,7 @@ class RoundRepository(BaseRepository):
             """
             SELECT 
                 r.id, r.arena_id, r.round_number, r.question_id, r.status, 
-                r.started_at, r.completed_at, r.created_at, r.updated_at,
+                r.started_at, r.ends_at, r.completed_at, r.created_at, r.updated_at,
                 q.category as question_category, 
                 q.difficulty as question_difficulty, 
                 q.prompt as question_prompt, 
@@ -35,7 +35,7 @@ class RoundRepository(BaseRepository):
             """
             SELECT 
                 r.id, r.arena_id, r.round_number, r.question_id, r.status, 
-                r.started_at, r.completed_at, r.created_at, r.updated_at,
+                r.started_at, r.ends_at, r.completed_at, r.created_at, r.updated_at,
                 q.category as question_category, 
                 q.difficulty as question_difficulty, 
                 q.prompt as question_prompt, 
@@ -56,6 +56,7 @@ class RoundRepository(BaseRepository):
 
     async def update_round_status(self, round_id: UUID, status: str, 
                                   start_time: Optional['datetime'] = None, 
+                                  ends_at: Optional['datetime'] = None,
                                   complete_time: Optional['datetime'] = None) -> Optional[RoundResponse]:
         updates = ["status = $2"]
         params = [str(round_id), status]
@@ -64,6 +65,11 @@ class RoundRepository(BaseRepository):
         if start_time:
             updates.append(f"started_at = ${idx}")
             params.append(start_time)
+            idx += 1
+            
+        if ends_at:
+            updates.append(f"ends_at = ${idx}")
+            params.append(ends_at)
             idx += 1
         
         if complete_time:

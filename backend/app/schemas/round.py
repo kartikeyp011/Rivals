@@ -17,6 +17,7 @@ class RoundResponse(BaseModel):
     question_id: UUID
     status: RoundStatus
     started_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     
     # Nested question safe data (correct_option is omitted by the service layer)

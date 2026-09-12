@@ -28,7 +28,7 @@ async def create_arena(
     if cached:
         return cached
 
-    await idem.lock_key(request.url.path, data.model_dump())
+    await idem.lock_key(request.url.path, data.model_dump(mode='json'))
     
     # Process
     arena = await service.create_arena(user_id, data)
@@ -93,3 +93,27 @@ async def cancel_arena(
     
     await idem.save_response(200, arena.model_dump(mode='json'))
     return arena
+
+import asyncio
+from datetime import datetime, timezone
+
+async def schedule_round_timeout(arena_id: uuid.UUID, round_id: uuid.UUID, ends_at: datetime):
+    now = datetime.now(timezone.utc)
+    delay = (ends_at - now).total_seconds()
+    if delay > 0:
+        await asyncio.sleep(delay)
+    
+    # After sleep, check if round should complete (timer expired)
+    # Import here to avoid circular imports if any
+    from app.core.db import get_connection
+    from app.services.scoring_service import ScoringService
+    
+    async with get_connection() as conn:
+        scoring_service = ScoringService(conn)
+        try:
+            # check_round_complete will lock the row, check if active, and handle timed_out attempts
+            await scoring_service.check_round_complete(arena_id, round_id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in background timeout task for arena {arena_id}, round {round_id}: {e}")

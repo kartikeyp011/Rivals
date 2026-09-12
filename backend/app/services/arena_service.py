@@ -90,7 +90,22 @@ class ArenaService:
             if rounds:
                 first_round = next((r for r in rounds if r.round_number == 1), None)
                 if first_round:
-                    await self.round_repo.update_round_status(first_round.id, 'active', start_time=now)
+                    from datetime import timedelta
+                    ends_at = now + timedelta(seconds=arena.time_limit_seconds)
+                    await self.round_repo.update_round_status(first_round.id, 'active', start_time=now, ends_at=ends_at, complete_time=None)
+                    
+                    # Pre-create attempts for active participants
+                    from app.repositories.attempt_repository import AttemptRepository
+                    attempt_repo = AttemptRepository(self.conn)
+                    participants = await self.participant_repo.get_participants_for_arena(arena_id)
+                    for p in participants:
+                        if p.status == 'active':
+                            await attempt_repo.create_attempt(arena_id, first_round.id, str(p.user_id))
+                            
+                    # Launch active timer
+                    import asyncio
+                    from app.routers.arenas import schedule_round_timeout
+                    asyncio.create_task(schedule_round_timeout(arena_id, first_round.id, ends_at))
 
             return updated
 

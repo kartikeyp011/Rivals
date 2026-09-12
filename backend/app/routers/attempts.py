@@ -13,7 +13,7 @@ router = APIRouter(prefix="/arenas", tags=["attempts"])
 def get_attempt_service(conn: Connection = Depends(get_db_connection)) -> AttemptService:
     return AttemptService(conn)
 
-@router.post("/{arena_id}/rounds/{round_id}/attempts", response_model=AttemptResponse, status_code=201)
+@router.post("/{arena_id}/rounds/{round_id}/attempts", response_model=AttemptResponse, status_code=200)
 async def create_attempt(
     arena_id: uuid.UUID,
     round_id: uuid.UUID,
@@ -29,11 +29,11 @@ async def create_attempt(
     if cached:
         return cached
 
-    await idem.lock_key(request.url.path, data.model_dump())
+    await idem.lock_key(request.url.path, data.model_dump(mode='json'))
     
     attempt = await service.create_attempt(arena_id, round_id, user_id, data)
     
-    await idem.save_response(201, attempt.model_dump(mode='json'))
+    await idem.save_response(200, attempt.model_dump(mode='json'))
     return attempt
 
 @router.get("/{arena_id}/rounds/{round_id}/attempts", response_model=List[AttemptResponse])

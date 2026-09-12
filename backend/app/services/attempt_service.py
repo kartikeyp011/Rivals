@@ -34,17 +34,56 @@ class AttemptService:
         if rnd.status != 'active':
             raise ConflictError("Attempts can only be submitted for active rounds")
 
-        # Step 5 ONLY: Write the attempt to the database.
-        # Do NOT implement scoring, timers, correctness evaluation, or round advancement.
-        # Those belong to Step 6 (Game Logic).
+        from app.services.scoring_service import ScoringService
+        scoring_service = ScoringService(self.conn)
+
         async with self.conn.transaction():
-            attempt = await self.attempt_repo.create_attempt(
+            # Check time limit
+            now = datetime.now(timezone.utc)
+            if rnd.ends_at and now > rnd.ends_at:
+                raise ConflictError("Round time limit has expired")
+
+            # Check if already submitted correctly
+            existing_attempts = await self.attempt_repo.get_attempts_for_user(round_id, user_id)
+            existing = existing_attempts[0] if existing_attempts else None
+            
+            if existing and existing.status in ('submitted', 'timed_out', 'void'):
+                raise ConflictError(f"Attempt is already in terminal state: {existing.status}")
+
+            # Validate answer
+            correct_option = await self.round_repo.get_correct_option_for_round(round_id)
+            is_correct = (data.selected_option == correct_option)
+
+            status = 'submitted' if is_correct else 'in_progress'
+
+            attempt = await self.attempt_repo.update_attempt(
                 round_id=round_id,
                 user_id=user_id,
-                submitted_answer=data.submitted_answer,
-                is_correct=False,  # Deferred to Step 6
-                points_awarded=0   # Deferred to Step 6
+                selected_option=data.selected_option,
+                is_correct=is_correct,
+                status=status,
+                response_ms=data.response_ms
             )
+            
+            # If there was no existing attempt, it means the user was not active when the round started
+            # or the pre-creation failed. We should reject or create.
+            if not attempt:
+                raise ConflictError("No active attempt found for this round")
+
+            if is_correct:
+                await scoring_service.score_attempt(
+                    arena_id=arena_id,
+                    round_id=round_id,
+                    user_id=user_id,
+                    is_correct=is_correct,
+                    started_at=rnd.started_at,
+                    ends_at=rnd.ends_at,
+                    submitted_at=attempt.submitted_at or now
+                )
+
+            # Check for round completion
+            await scoring_service.check_round_complete(arena_id, round_id)
+
             return attempt
 
     async def get_attempts(self, arena_id: UUID, round_id: UUID, user_id: str) -> List[AttemptResponse]:

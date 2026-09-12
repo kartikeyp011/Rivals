@@ -11,17 +11,17 @@ class AttemptStatus(str, Enum):
     void = 'void'
 
 class AttemptCreate(BaseModel):
-    submitted_answer: str
+    selected_option: str
+    response_ms: Optional[int] = None
 
 class AttemptResponse(BaseModel):
     id: UUID
     round_id: UUID
     user_id: UUID
     status: AttemptStatus
-    submitted_answer: Optional[str] = None
+    selected_option: Optional[str] = None
     is_correct: Optional[bool] = None
-    points_awarded: int
-    started_at: datetime
+    response_ms: Optional[int] = None
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
