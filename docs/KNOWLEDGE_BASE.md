@@ -39,6 +39,13 @@ PostgreSQL / Supabase
 
 The important rule is that routers do not contain database SQL or core business logic, while repositories do not own application/game business rules.
 
+## Step 13 Architecture Decision (Deployment Reality vs Plans)
+
+During Step 13 (Deployment), an explicit architectural review confirmed the *actual* implemented state of the repository differs from some early theoretical plans:
+- **No FastAPI WebSockets:** The FastAPI server is exclusively a REST API. All multiplayer synchronization and real-time events are handled entirely by **Supabase Realtime**, which the mobile client subscribes to directly.
+- **No Redis:** Despite `redis` being listed in the `requirements.txt`, there is no runtime usage of Redis in the backend. Idempotency and state are managed via PostgreSQL.
+- **Decision:** We will **not** deploy Redis, and we will **not** configure WebSocket support on the FastAPI deployment. The production architecture relies strictly on FastAPI (REST) + asyncpg (PostgreSQL) + Supabase (Auth/Realtime).
+
 ---
 
 # 2. Implementation Order

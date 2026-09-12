@@ -10,7 +10,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kartikeyp011.rivals",
-      "icon": "./assets/images/rivals-logo.png"
+      "icon": "./assets/images/rivals-logo.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -46,6 +49,7 @@
       "eas": {
         "projectId": "59de9f91-14c9-4612-a48c-62caf9cae536"
       }
-    }
+    },
+    "owner": "kartikeyp011"
   }
 }
