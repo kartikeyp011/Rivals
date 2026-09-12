@@ -985,3 +985,41 @@ Implemented the Friends, Lobby, and Invites flows. This involved updating the da
 - **Test Suite Confirmed:** `test_friends.py` and the entire regression suite (14 tests total) pass locally using the backend's `.env`.
 - **Frontend Typecheck Confirmed:** `npx tsc --noEmit` passes cleanly.
 - **Git State Confirmed:** Working tree is completely clean and the Step 9 commit is intact.
+
+---
+
+## Step 10 — Scoring, Timers & Unlimited-attempt Logic
+
+### 1. What Was Implemented
+Aligned the frontend and backend semantics to strictly follow unlimited attempts logic and server-authoritative timers. 
+The backend was already functionally complete in scoring service and schema, but the frontend was overhauled to handle `points_awarded` on response, visual timer syncing without local trust, and transient retry UI. A robust regression test for idempotency and the state transitions was also added.
+
+### 2. Files Changed/Created
+- **Modified (Backend):** `backend/app/schemas/attempt.py`, `backend/app/services/attempt_service.py`
+- **Created (Backend):** `backend/tests/test_scoring_unlimited.py`
+- **Modified (Frontend):** `mobile/src/app/arena/play.tsx`
+
+### 3. Finalized Business Logic & Rules
+- **Server-Authoritative Scoring:** `scoring_service.score_attempt` runs server-side to calculate base score plus time-based bonus. The calculated score is directly injected into `AttemptResponse.points_awarded` so the frontend doesn't need to deduce it.
+- **Unlimited Attempts Semantics:** An incorrect answer leaves the attempt in `in_progress` status (frontend sees `is_correct: False` and clears selection with transient feedback). Only a correct answer makes the attempt terminal (`submitted`). Further submissions after a terminal attempt are rejected with `409 Conflict`.
+- **Timer Rules:** The backend `round.ends_at` is the singular source of truth. The frontend interval timer is purely visual. If the frontend submits after expiry, the backend rejects it with `409 Conflict` (and subsequently, the scoring background task cleans it up to `timed_out`).
+
+### 4. API Changes
+- Modified `AttemptResponse` schema to include `points_awarded: Optional[int] = None`. This avoids DB schema changes while satisfying the contract for the frontend.
+
+### 5. Architectural Decisions
+- Maintained the separation of powers: The frontend does zero point calculation and is unaware of the `score_attempt` internals.
+- Exposing `points_awarded` inside `AttemptResponse` removes the need for the frontend to separately poll `GET /results` immediately after answering to display their earned points.
+
+### 6. Tests and Validation Results
+- Added `backend/tests/test_scoring_unlimited.py` which rigorously tests:
+  - Wrong answer retries without DB duplication.
+  - Lifecycle: Wrong -> Wrong -> Correct.
+  - Score bounds validation.
+  - Expiry rejections.
+  - Idempotent request collisions.
+- **Backend Tests:** 15/15 passed.
+- **Frontend Typecheck:** `npx tsc --noEmit` passed cleanly with React Native timer updates.
+
+### 7. Known Issues / Caveats
+- No caveats remain. Idempotency is fully stable, and timer expiry behaves as expected on both mobile and API layers.

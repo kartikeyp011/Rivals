@@ -12,8 +12,13 @@ export default function PlayRoundScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   
-  // State for result
-  const [result, setResult] = useState<any>(null);
+  // Timer state
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [isTimeUp, setIsTimeUp] = useState(false);
+
+  // Result state
+  const [result, setResult] = useState<any>(null); // For successful or terminal result
+  const [transientFeedback, setTransientFeedback] = useState<string | null>(null); // For incorrect guess
   const [startTime] = useState(Date.now());
 
   useEffect(() => {
@@ -22,17 +27,35 @@ export default function PlayRoundScreen() {
     }
   }, [arenaId, roundId]);
 
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (round && round.ends_at && !result && !isTimeUp) {
+      const endsAtMs = new Date(round.ends_at).getTime();
+      
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.floor((endsAtMs - Date.now()) / 1000));
+        setTimeLeft(remaining);
+        if (remaining === 0) {
+          setIsTimeUp(true);
+          clearInterval(interval);
+        }
+      };
+      
+      updateTimer();
+      interval = setInterval(updateTimer, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [round, result, isTimeUp]);
+
   const loadRound = async () => {
     try {
       setLoading(true);
       setError(null);
-      // Fetch all rounds and find ours
       const roundsData = await getArenaRounds(arenaId);
       const currentRound = roundsData.find((r: any) => r.id === roundId);
       if (!currentRound) throw new Error("Round not found");
       setRound(currentRound);
       
-      // If round is already completed, they shouldn't be here playing, but we handle gracefully
       if (currentRound.status === 'completed') {
         setError("This round is already completed.");
       }
@@ -44,18 +67,34 @@ export default function PlayRoundScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!selected) return;
+    if (!selected || isTimeUp) return;
     try {
       setSubmitting(true);
       setError(null);
+      setTransientFeedback(null);
       
       const responseMs = Date.now() - startTime;
       const idempotencyKey = Math.random().toString(36).substring(7);
       
       const attemptRes = await submitAttempt(arenaId, roundId, selected, responseMs, idempotencyKey);
-      setResult(attemptRes);
+      
+      if (attemptRes.is_correct) {
+        setResult(attemptRes);
+      } else if (attemptRes.status === 'timed_out' || attemptRes.status === 'void') {
+        // Technically backend handled it as terminal
+        setIsTimeUp(true);
+      } else {
+        // Incorrect, let them try again
+        setTransientFeedback("Incorrect! Keep trying.");
+        setSelected(null);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to submit answer');
+      // 409 usually means time limit expired or already submitted
+      if (err.message && err.message.toLowerCase().includes('expired')) {
+        setIsTimeUp(true);
+      } else {
+        setError(err.message || 'Failed to submit answer');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -80,17 +119,29 @@ export default function PlayRoundScreen() {
     );
   }
 
-  // If result is present, show feedback
   if (result) {
-    const isCorrect = result.points_awarded > 0; // Or depending on exact logic if needed
+    const points = result.points_awarded || 0;
     return (
       <View style={styles.container}>
         <View style={styles.resultContainer}>
-          <Text style={styles.resultEmoji}>{isCorrect ? '✅' : '❌'}</Text>
-          <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
-            {isCorrect ? 'Correct!' : 'Incorrect!'}
-          </Text>
-          <Text style={styles.resultSubtext}>+{result.points_awarded} points earned!</Text>
+          <Text style={styles.resultEmoji}>✅</Text>
+          <Text style={[styles.resultText, styles.correctText]}>Correct!</Text>
+          <Text style={styles.resultSubtext}>+{points} points earned!</Text>
+          <TouchableOpacity style={styles.continueButton} onPress={() => router.replace(`/arena/${arenaId}` as any)}>
+            <Text style={styles.continueButtonText}>Return to Lobby →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (isTimeUp) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.resultContainer}>
+          <Text style={styles.resultEmoji}>⏳</Text>
+          <Text style={[styles.resultText, styles.incorrectText]}>Time's Up!</Text>
+          <Text style={styles.resultSubtext}>You ran out of time for this round.</Text>
           <TouchableOpacity style={styles.continueButton} onPress={() => router.replace(`/arena/${arenaId}` as any)}>
             <Text style={styles.continueButtonText}>Return to Lobby →</Text>
           </TouchableOpacity>
@@ -106,13 +157,25 @@ export default function PlayRoundScreen() {
           <Text style={styles.backTextTop}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Round {round.round_number}</Text>
-        <View style={styles.placeholder} />
+        <View style={styles.timerContainer}>
+          {timeLeft !== null && (
+            <Text style={[styles.timerText, timeLeft <= 5 && styles.timerWarning]}>
+              {timeLeft}s
+            </Text>
+          )}
+        </View>
       </View>
 
       <View style={styles.content}>
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+        
+        {transientFeedback && (
+          <View style={styles.transientFeedbackContainer}>
+            <Text style={styles.transientFeedbackText}>{transientFeedback}</Text>
           </View>
         )}
 
@@ -129,6 +192,7 @@ export default function PlayRoundScreen() {
                   selected === opt.id && styles.optionSelected
                 ]}
                 onPress={() => setSelected(opt.id)}
+                disabled={submitting}
               >
                 <Text style={styles.optionLabel}>{opt.id}</Text>
                 <Text style={styles.optionText}>{opt.text}</Text>
@@ -185,8 +249,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
   },
-  placeholder: {
-    width: 40,
+  timerContainer: {
+    width: 60,
+    alignItems: 'flex-end',
+  },
+  timerText: {
+    color: '#00b894',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  timerWarning: {
+    color: '#ff6b6b',
   },
   content: {
     flex: 1,
@@ -272,6 +345,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
+  transientFeedbackContainer: {
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.4)',
+    marginBottom: 20,
+  },
+  transientFeedbackText: {
+    color: '#ff6b6b',
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
   backButton: {
     marginTop: 20,
     backgroundColor: '#2a2a5a',
@@ -308,6 +395,7 @@ const styles = StyleSheet.create({
     color: '#8888aa',
     fontSize: 18,
     marginBottom: 40,
+    textAlign: 'center',
   },
   continueButton: {
     backgroundColor: '#00b894',

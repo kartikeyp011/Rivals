@@ -22,6 +22,7 @@ class AttemptResponse(BaseModel):
     selected_option: Optional[str] = None
     is_correct: Optional[bool] = None
     response_ms: Optional[int] = None
+    points_awarded: Optional[int] = None
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

@@ -71,7 +71,7 @@ class AttemptService:
                 raise ConflictError("No active attempt found for this round")
 
             if is_correct:
-                await scoring_service.score_attempt(
+                score = await scoring_service.score_attempt(
                     arena_id=arena_id,
                     round_id=round_id,
                     user_id=user_id,
@@ -80,6 +80,11 @@ class AttemptService:
                     ends_at=rnd.ends_at,
                     submitted_at=attempt.submitted_at or now
                 )
+                if score:
+                    # Inject points_awarded into the AttemptResponse
+                    attempt_data = attempt.model_dump()
+                    attempt_data['points_awarded'] = score.total_points
+                    attempt = AttemptResponse(**attempt_data)
 
             # Check for round completion
             await scoring_service.check_round_complete(arena_id, round_id)
