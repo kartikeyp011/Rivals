@@ -928,3 +928,50 @@ Integrated the existing Expo mobile frontend with the fully functional Arena bac
 
 ### 9. Step 8 Final Status
 - **FULLY VERIFIED**: The step is closed out cleanly. The commit `f436d2da12f1db4d950f9b718db19c6fe015763b` remains intact and unmodified. No secrets or unrelated mobile config files were staged. Ready for Step 9.
+
+---
+
+## Step 9 — Friends/Lobby/Invites Flow
+
+### 1. What Was Implemented
+Implemented the Friends, Lobby, and Invites flows. This involved updating the database schema to handle friend request states correctly, enabling Realtime for relevant tables, building backend API routes, and wiring the frontend components (`friends.tsx`, `index.tsx`, `arena/[id].tsx`) to the real API.
+
+### 2. Files Changed/Created
+- **Created (Database):** `supabase/migrations/20260909210017_friends_status.sql`
+- **Created (Backend):** `backend/app/schemas/friend.py`, `backend/app/schemas/user.py`, `backend/app/repositories/friend_repository.py`, `backend/app/repositories/user_repository.py`, `backend/app/services/friend_service.py`, `backend/app/services/user_service.py`, `backend/app/routers/friends.py`, `backend/app/routers/users.py`, `backend/tests/test_friends.py`.
+- **Modified (Backend):** `backend/app/main.py`
+- **Modified (Frontend):** `mobile/src/lib/api.ts`, `mobile/src/app/(tabs)/friends.tsx`, `mobile/src/app/(tabs)/index.tsx`, `mobile/src/app/arena/[id].tsx`.
+
+### 3. Database / Schema Changes
+- Added a `friend_status` enum (`pending`, `accepted`, `rejected`).
+- Added a `status` column to the `friends` table defaulting to `pending`.
+- Added the `friends`, `arena_participants`, and `arena_invites` tables to the `supabase_realtime` publication.
+
+### 4. Finalized Business Logic & Rules
+- **Friends State Machine:** `pending` requests can be transitioned to `accepted` or `rejected`.
+- **Bidirectional Rows:** Accepting a request creates a reciprocal row (`friend_id`, `user_id`) to simplify relationship querying. Removing a friend deletes both rows.
+- **Rejected Requests:** Rejecting a request updates the status to `rejected` instead of deleting the row. This naturally prevents duplicate requests due to the `uq_friends_pair` constraint, preventing spam requests.
+- **Invites:** Invites are tracked via `arena_invites` and can be sent to friends from the Lobby UI.
+
+### 5. API Changes
+- `GET /api/v1/friends` - Get accepted friends.
+- `GET /api/v1/friends/requests/pending` - Get pending inbound requests.
+- `POST /api/v1/friends/requests` - Send request.
+- `PUT /api/v1/friends/requests/{request_id}/respond` - Accept/reject request.
+- `DELETE /api/v1/friends/{friend_id}` - Remove a friend.
+- `GET /api/v1/users/search?q={query}` - Search users by name/username.
+- `GET /api/v1/invites` - Get pending invites.
+- `POST /api/v1/arenas/{arena_id}/invites` - Send arena invite.
+- `POST /api/v1/invites/{invite_id}/respond` - Accept/decline invite.
+
+### 6. Security / RLS Implications
+- Standard FastAPI `Depends(get_current_user)` authentication applies to all new routes.
+- RLS policies ensure users can only modify/view requests involving their own ID.
+
+### 7. Tests and Validation Results
+- `test_friends.py` added to verify the friend request lifecycle, search, and rejection constraints.
+- **Backend Tests:** Passed successfully across `test_validation.py`, `test_game_loop.py`, `test_custom_arena.py`, and `test_friends.py`.
+- **Frontend Typecheck:** `npx tsc --noEmit` passed successfully.
+
+### 8. Known Issues
+- Currently using polling `setInterval` in UI components for checking invites and state updates, as full Supabase Realtime subscriptions in the Expo app are out-of-scope for the basic integration, though the database is ready for them.

@@ -1,22 +1,63 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { getCoinState } from '@/state/coinState';
 import { getStreakState } from '@/state/streakState';
+import * as api from '@/lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function HomeScreen() {
     const [coins, setCoins] = useState(0);
     const [streak, setStreak] = useState(0);
+    const [invites, setInvites] = useState<any[]>([]);
+
+    const loadInvites = async () => {
+        try {
+            const data = await api.getInvites();
+            // Filter only pending invites
+            const pending = data.filter((i: any) => i.status === 'pending');
+            setInvites(pending);
+        } catch (e) {
+            // Silently ignore or log
+        }
+    };
 
     useEffect(() => {
         const coinState = getCoinState();
         setCoins(coinState.balance);
         const streakState = getStreakState();
         setStreak(streakState.currentStreak);
+        
+        loadInvites();
+        
+        // Polling as a fallback, but realtime would be better if we subscribe.
+        const interval = setInterval(loadInvites, 5000);
+        return () => clearInterval(interval);
     }, []);
 
+    const handleAcceptInvite = async (inviteId: string) => {
+        try {
+            const res = await api.respondToInvite(inviteId, true, uuidv4());
+            Alert.alert('🎉', 'Invite accepted!');
+            loadInvites();
+            router.push(`/arena/${res.arena_id}` as any);
+        } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to accept invite');
+        }
+    };
+
+    const handleDeclineInvite = async (inviteId: string) => {
+        try {
+            await api.respondToInvite(inviteId, false, uuidv4());
+            loadInvites();
+        } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to decline invite');
+        }
+    };
+
     return (
-        <View style={styles.container}>
+        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <View>
@@ -53,6 +94,35 @@ export default function HomeScreen() {
                     <Text style={styles.statLabel}>Global Rank</Text>
                 </TouchableOpacity>
             </View>
+
+            {invites.length > 0 && (
+                <View style={styles.invitesSection}>
+                    <Text style={styles.sectionTitle}>Game Invites</Text>
+                    {invites.map((invite) => (
+                        <View key={invite.id} style={styles.inviteCard}>
+                            <View style={styles.inviteInfo}>
+                                <Text style={styles.inviteText}>
+                                    <Text style={styles.inviteSender}>Arena Invite</Text> received!
+                                </Text>
+                            </View>
+                            <View style={styles.inviteActions}>
+                                <TouchableOpacity 
+                                    style={styles.acceptBtn}
+                                    onPress={() => handleAcceptInvite(invite.id)}
+                                >
+                                    <Text style={styles.acceptBtnText}>Join</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={styles.declineBtn}
+                                    onPress={() => handleDeclineInvite(invite.id)}
+                                >
+                                    <Text style={styles.declineBtnText}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             <View style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -103,7 +173,7 @@ export default function HomeScreen() {
                     <Text style={styles.actionText}>Wagers</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </ScrollView>
     );
 }
 
@@ -275,5 +345,60 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 12,
         fontWeight: '600',
+    },
+    invitesSection: {
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#ffffff',
+        marginBottom: 12,
+    },
+    inviteCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#1a1a3a',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#2a2a5a',
+    },
+    inviteInfo: {
+        flex: 1,
+    },
+    inviteText: {
+        color: '#ccc',
+        fontSize: 14,
+    },
+    inviteSender: {
+        color: '#ffffff',
+        fontWeight: 'bold',
+    },
+    inviteActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    acceptBtn: {
+        backgroundColor: '#00b894',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    acceptBtnText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    declineBtn: {
+        backgroundColor: '#ff6b6b',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    declineBtnText: {
+        color: '#fff',
+        fontWeight: 'bold',
     },
 });

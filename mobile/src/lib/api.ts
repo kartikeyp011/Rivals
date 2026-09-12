@@ -93,3 +93,108 @@ export async function submitAttempt(arenaId: string, roundId: string, selectedOp
   }
   return res.json();
 }
+
+// 7. Friends API
+export async function getFriends() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/friends`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch friends');
+  return res.json();
+}
+
+export async function getPendingRequests() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/friends/requests/pending`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch pending requests');
+  return res.json();
+}
+
+export async function sendFriendRequest(friendId: string, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/friends/requests`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ friend_id: friendId }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to send friend request');
+  }
+  return res.json();
+}
+
+export async function respondToFriendRequest(requestId: string, accept: boolean, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/friends/requests/${requestId}/respond`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ accept }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to respond to friend request');
+  }
+  return res.json();
+}
+
+export async function removeFriend(friendId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/friends/${friendId}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) throw new Error('Failed to remove friend');
+  return;
+}
+
+// 8. Users API
+export async function searchUsers(q: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/users/search?q=${encodeURIComponent(q)}`, { headers });
+  if (!res.ok) throw new Error('Failed to search users');
+  return res.json();
+}
+
+// 9. Invites API
+export async function getInvites() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/invites`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch invites');
+  return res.json();
+}
+
+export async function sendInvite(arenaId: string, inviteeId: string, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/invites`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ invitee_id: inviteeId }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to send invite');
+  }
+  return res.json();
+}
+
+export async function respondToInvite(inviteId: string, accept: boolean, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/invites/${inviteId}/respond`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ accept }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to respond to invite');
+  }
+  return res.json();
+}
+
+// 10. Participants API
+export async function getParticipants(arenaId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/participants`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch participants');
+  return res.json();
+}

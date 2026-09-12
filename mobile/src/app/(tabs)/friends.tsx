@@ -1,60 +1,80 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
-import { 
-  getFriends, 
-  getFriendRequests, 
-  getPendingRequests,
-  getAcceptedFriends,
-  getAvailableUsers,
-  sendFriendRequest,
-  acceptFriendRequest,
-  rejectFriendRequest,
-  removeFriend,
-  Friend,
-  FriendRequest
-} from '@/state/friendState';
+import * as api from '@/lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 type TabType = 'friends' | 'requests' | 'add';
 
 export default function FriendsScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('friends');
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const loadData = () => {
-    setFriends(getAcceptedFriends());
-    setRequests(getPendingRequests());
-    setAvailableUsers(getAvailableUsers());
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'friends') {
+        const data = await api.getFriends();
+        setFriends(data);
+      } else if (activeTab === 'requests') {
+        const data = await api.getPendingRequests();
+        setRequests(data);
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeTab]);
 
-  const handleSendRequest = (userId: string, userName: string) => {
-    const success = sendFriendRequest(userId);
-    if (success) {
-      Alert.alert('✅ Request Sent', `Friend request sent to ${userName}!`);
-      loadData();
+  const handleSearch = async (text: string) => {
+    setSearchQuery(text);
+    if (text.length >= 2) {
+      try {
+        const users = await api.searchUsers(text);
+        setAvailableUsers(users);
+      } catch (e) {
+        // ignore search errors or handle silently
+      }
     } else {
-      Alert.alert('⚠️', 'Request already sent or user is already a friend.');
+      setAvailableUsers([]);
     }
   };
 
-  const handleAcceptRequest = (requestId: string) => {
-    const success = acceptFriendRequest(requestId);
-    if (success) {
+  const handleSendRequest = async (userId: string, userName: string) => {
+    try {
+      await api.sendFriendRequest(userId, uuidv4());
+      Alert.alert('✅ Request Sent', `Friend request sent to ${userName}!`);
+      // Optionally reload data or remove user from search list
+    } catch (e: any) {
+      Alert.alert('⚠️', e.message || 'Failed to send request.');
+    }
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    try {
+      await api.respondToFriendRequest(requestId, true, uuidv4());
       Alert.alert('🎉', 'Friend request accepted!');
       loadData();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to accept request');
     }
   };
 
-  const handleRejectRequest = (requestId: string) => {
-    const success = rejectFriendRequest(requestId);
-    if (success) {
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      await api.respondToFriendRequest(requestId, false, uuidv4());
       loadData();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to reject request');
     }
   };
 
@@ -67,19 +87,19 @@ export default function FriendsScreen() {
         { 
           text: 'Remove', 
           style: 'destructive',
-          onPress: () => {
-            removeFriend(friendId);
-            loadData();
-            Alert.alert('✅', `Removed ${friendName} from friends.`);
+          onPress: async () => {
+            try {
+              await api.removeFriend(friendId);
+              loadData();
+              Alert.alert('✅', `Removed ${friendName} from friends.`);
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Failed to remove friend');
+            }
           }
         }
       ]
     );
   };
-
-  const filteredAvailable = availableUsers.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <View style={styles.container}>
@@ -95,7 +115,7 @@ export default function FriendsScreen() {
           onPress={() => setActiveTab('friends')}
         >
           <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
-            Friends ({friends.length})
+            Friends
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -103,7 +123,7 @@ export default function FriendsScreen() {
           onPress={() => setActiveTab('requests')}
         >
           <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
-            Requests ({requests.length})
+            Requests
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -118,103 +138,109 @@ export default function FriendsScreen() {
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {activeTab === 'friends' && (
+        {loading && activeTab !== 'add' ? (
+          <ActivityIndicator size="large" color="#6c5ce7" style={{ marginTop: 50 }} />
+        ) : (
           <>
-            {friends.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyEmoji}>👥</Text>
-                <Text style={styles.emptyText}>No friends yet</Text>
-                <Text style={styles.emptySubtext}>Add friends to compete on leaderboards!</Text>
-              </View>
-            ) : (
-              friends.map((friend) => (
-                <View key={friend.id} style={styles.friendItem}>
-                  <Text style={styles.friendAvatar}>{friend.avatar}</Text>
-                  <View style={styles.friendInfo}>
-                    <Text style={styles.friendName}>{friend.name}</Text>
-                    <Text style={styles.friendStatus}>Friend</Text>
+            {activeTab === 'friends' && (
+              <>
+                {friends.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyEmoji}>👥</Text>
+                    <Text style={styles.emptyText}>No friends yet</Text>
+                    <Text style={styles.emptySubtext}>Add friends to compete on leaderboards!</Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => handleRemoveFriend(friend.id, friend.name)}
-                  >
-                    <Text style={styles.removeButtonText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
+                ) : (
+                  friends.map((friend) => (
+                    <View key={friend.friend_id} style={styles.friendItem}>
+                      <Text style={styles.friendAvatar}>{friend.friend_avatar_url || '👤'}</Text>
+                      <View style={styles.friendInfo}>
+                        <Text style={styles.friendName}>{friend.friend_display_name || friend.friend_username}</Text>
+                        <Text style={styles.friendStatus}>Friend</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => handleRemoveFriend(friend.friend_id, friend.friend_display_name || friend.friend_username)}
+                      >
+                        <Text style={styles.removeButtonText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </>
             )}
-          </>
-        )}
 
-        {activeTab === 'requests' && (
-          <>
-            {requests.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyEmoji}>📭</Text>
-                <Text style={styles.emptyText}>No pending requests</Text>
-                <Text style={styles.emptySubtext}>When friends add you, they'll appear here.</Text>
-              </View>
-            ) : (
-              requests.map((request) => (
-                <View key={request.id} style={styles.requestItem}>
-                  <Text style={styles.requestAvatar}>{request.fromAvatar}</Text>
-                  <View style={styles.requestInfo}>
-                    <Text style={styles.requestName}>{request.fromName}</Text>
-                    <Text style={styles.requestStatus}>Pending</Text>
+            {activeTab === 'requests' && (
+              <>
+                {requests.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyEmoji}>📭</Text>
+                    <Text style={styles.emptyText}>No pending requests</Text>
+                    <Text style={styles.emptySubtext}>When friends add you, they'll appear here.</Text>
                   </View>
-                  <View style={styles.requestActions}>
-                    <TouchableOpacity
-                      style={styles.acceptButton}
-                      onPress={() => handleAcceptRequest(request.id)}
-                    >
-                      <Text style={styles.acceptButtonText}>✓</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.rejectButton}
-                      onPress={() => handleRejectRequest(request.id)}
-                    >
-                      <Text style={styles.rejectButtonText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))
+                ) : (
+                  requests.map((request) => (
+                    <View key={request.id} style={styles.requestItem}>
+                      <Text style={styles.requestAvatar}>{request.friend_avatar_url || '👤'}</Text>
+                      <View style={styles.requestInfo}>
+                        <Text style={styles.requestName}>{request.friend_display_name || request.friend_username}</Text>
+                        <Text style={styles.requestStatus}>Pending</Text>
+                      </View>
+                      <View style={styles.requestActions}>
+                        <TouchableOpacity
+                          style={styles.acceptButton}
+                          onPress={() => handleAcceptRequest(request.id)}
+                        >
+                          <Text style={styles.acceptButtonText}>✓</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.rejectButton}
+                          onPress={() => handleRejectRequest(request.id)}
+                        >
+                          <Text style={styles.rejectButtonText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </>
             )}
-          </>
-        )}
 
-        {activeTab === 'add' && (
-          <>
-            <View style={styles.searchContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search users..."
-                placeholderTextColor="#555"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-            
-            {filteredAvailable.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyEmoji}>🔍</Text>
-                <Text style={styles.emptyText}>No users found</Text>
-                <Text style={styles.emptySubtext}>Try a different search or all users are already added.</Text>
-              </View>
-            ) : (
-              filteredAvailable.map((user) => (
-                <View key={user.id} style={styles.addItem}>
-                  <Text style={styles.addAvatar}>{user.avatar}</Text>
-                  <View style={styles.addInfo}>
-                    <Text style={styles.addName}>{user.name}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => handleSendRequest(user.id, user.name)}
-                  >
-                    <Text style={styles.addButtonText}>Add</Text>
-                  </TouchableOpacity>
+            {activeTab === 'add' && (
+              <>
+                <View style={styles.searchContainer}>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search users..."
+                    placeholderTextColor="#555"
+                    value={searchQuery}
+                    onChangeText={handleSearch}
+                  />
                 </View>
-              ))
+                
+                {availableUsers.length === 0 && searchQuery.length >= 2 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyEmoji}>🔍</Text>
+                    <Text style={styles.emptyText}>No users found</Text>
+                    <Text style={styles.emptySubtext}>Try a different search.</Text>
+                  </View>
+                ) : (
+                  availableUsers.map((user) => (
+                    <View key={user.id} style={styles.addItem}>
+                      <Text style={styles.addAvatar}>{user.avatar_url || '👤'}</Text>
+                      <View style={styles.addInfo}>
+                        <Text style={styles.addName}>{user.display_name || user.username}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.addButton}
+                        onPress={() => handleSendRequest(user.id, user.display_name || user.username)}
+                      >
+                        <Text style={styles.addButtonText}>Add</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </>
             )}
           </>
         )}

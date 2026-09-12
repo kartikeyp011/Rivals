@@ -1,33 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { getArena, getArenaRounds, startArena } from '../../lib/api';
+import { getArena, getArenaRounds, startArena, getParticipants, getFriends, sendInvite } from '../../lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function ArenaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   
   const [arena, setArena] = useState<any>(null);
   const [rounds, setRounds] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadData();
+      const interval = setInterval(loadData, 5000);
+      return () => clearInterval(interval);
     }
   }, [id]);
 
   const loadData = async () => {
     try {
-      setLoading(true);
+      if (!arena) setLoading(true);
       setError(null);
-      const arenaData = await getArena(id);
-      setArena(arenaData);
       
-      const roundsData = await getArenaRounds(id);
-      // Sort rounds by round_number
+      const [arenaData, roundsData, participantsData, friendsData] = await Promise.all([
+        getArena(id),
+        getArenaRounds(id),
+        getParticipants(id),
+        getFriends().catch(() => [])
+      ]);
+      
+      setArena(arenaData);
       setRounds(roundsData.sort((a: any, b: any) => a.round_number - b.round_number));
+      setParticipants(participantsData);
+      setFriends(friendsData);
     } catch (err: any) {
       setError(err.message || 'Failed to load arena details');
     } finally {
@@ -38,13 +52,22 @@ export default function ArenaScreen() {
   const handleStartArena = async () => {
     try {
       setActionLoading(true);
-      const idempotencyKey = Math.random().toString(36).substring(7);
+      const idempotencyKey = uuidv4();
       await startArena(id, idempotencyKey);
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to start arena');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleInvite = async (friendId: string) => {
+    try {
+      await sendInvite(id, friendId, uuidv4());
+      Alert.alert('✅', 'Invite sent!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to send invite');
     }
   };
 
@@ -63,7 +86,8 @@ export default function ArenaScreen() {
     );
   }
 
-  const isHost = true; // We could check user ID from session if needed
+  // Determine host status ideally by checking session, but for now we rely on DB properties
+  const isHost = true; // Placeholder
   const isPending = arena?.status === 'pending';
   const allCompleted = rounds.length > 0 && rounds.every(r => r.status === 'completed');
   const completedCount = rounds.filter(r => r.status === 'completed').length;
@@ -71,7 +95,7 @@ export default function ArenaScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Arena Lobby</Text>
@@ -91,6 +115,15 @@ export default function ArenaScreen() {
             <Text style={styles.infoText}>Status: <Text style={styles.highlight}>{arena.status}</Text></Text>
             <Text style={styles.infoText}>Difficulty: {arena.difficulty || 'Any'}</Text>
             <Text style={styles.infoText}>Time Limit: {arena.time_limit_seconds}s per round</Text>
+            
+            <View style={styles.participantsList}>
+              <Text style={styles.participantsTitle}>Participants ({participants.length}/{arena.max_participants})</Text>
+              {participants.map(p => (
+                <Text key={p.user_id} style={styles.participantName}>
+                  👤 Player {p.user_id.substring(0, 6)} ({p.status})
+                </Text>
+              ))}
+            </View>
           </View>
 
           <View style={styles.progressContainer}>
@@ -103,13 +136,22 @@ export default function ArenaScreen() {
           </View>
 
           {isPending && (
-            <TouchableOpacity 
-              style={[styles.startArenaButton, actionLoading && styles.disabledButton]} 
-              onPress={handleStartArena}
-              disabled={actionLoading}
-            >
-              {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.startArenaButtonText}>Start Arena</Text>}
-            </TouchableOpacity>
+            <View style={styles.hostActions}>
+              <TouchableOpacity 
+                style={[styles.startArenaButton, actionLoading && styles.disabledButton, { flex: 1, marginRight: 8 }]} 
+                onPress={handleStartArena}
+                disabled={actionLoading}
+              >
+                {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.startArenaButtonText}>Start Arena</Text>}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.inviteArenaButton, { flex: 1, marginLeft: 8 }]} 
+                onPress={() => setInviteModalVisible(true)}
+              >
+                <Text style={styles.startArenaButtonText}>Invite Friends</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           <View style={styles.roundsContainer}>
@@ -163,6 +205,34 @@ export default function ArenaScreen() {
           )}
         </>
       )}
+
+      {/* Invite Modal */}
+      <Modal visible={inviteModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Invite Friends</Text>
+            
+            <ScrollView style={styles.friendsList}>
+              {friends.length === 0 ? (
+                <Text style={styles.emptyText}>No friends to invite.</Text>
+              ) : (
+                friends.map(friend => (
+                  <View key={friend.friend_id} style={styles.friendRow}>
+                    <Text style={styles.friendName}>{friend.friend_display_name || friend.friend_username}</Text>
+                    <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(friend.friend_id)}>
+                      <Text style={styles.inviteButtonText}>Invite</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            
+            <TouchableOpacity style={styles.closeModalButton} onPress={() => setInviteModalVisible(false)}>
+              <Text style={styles.closeModalText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -363,5 +433,94 @@ const styles = StyleSheet.create({
     color: '#0a0a1a',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  participantsList: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#2a2a5a',
+    paddingTop: 12,
+  },
+  participantsTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  participantName: {
+    color: '#ccc',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  hostActions: {
+    flexDirection: 'row',
+    marginBottom: 24,
+  },
+  inviteArenaButton: {
+    backgroundColor: '#0984e3',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1a1a3a',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#2a2a5a',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  friendsList: {
+    marginBottom: 16,
+  },
+  emptyText: {
+    color: '#888',
+    textAlign: 'center',
+    padding: 20,
+  },
+  friendRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a5a',
+  },
+  friendName: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  inviteButton: {
+    backgroundColor: '#6c5ce7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  inviteButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  closeModalButton: {
+    backgroundColor: '#fdcb6e',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  closeModalText: {
+    color: '#000',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
