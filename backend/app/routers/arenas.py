@@ -44,6 +44,15 @@ async def list_arenas(
 ):
     return await service.get_arenas_for_user(user_id)
 
+from app.schemas.config import ArenaConfigOptions
+
+@router.get("/config/options", response_model=ArenaConfigOptions)
+async def get_config_options(
+    user_id: str = Depends(get_current_user),
+    service: ArenaService = Depends(get_arena_service)
+):
+    return await service.get_config_options()
+
 @router.get("/{arena_id}", response_model=ArenaResponse)
 async def get_arena(
     arena_id: uuid.UUID,

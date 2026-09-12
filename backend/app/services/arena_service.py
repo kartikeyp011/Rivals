@@ -3,6 +3,7 @@ from uuid import UUID
 from asyncpg import Connection
 
 from app.schemas.arena import ArenaCreate, ArenaResponse
+from app.schemas.config import ArenaConfigOptions
 from app.repositories.arena_repository import ArenaRepository
 from app.repositories.participant_repository import ParticipantRepository
 from app.repositories.round_repository import RoundRepository
@@ -14,6 +15,11 @@ class ArenaService:
         self.arena_repo = ArenaRepository(conn)
         self.participant_repo = ParticipantRepository(conn)
         self.round_repo = RoundRepository(conn)
+
+    async def get_config_options(self) -> ArenaConfigOptions:
+        rows = await self.conn.fetch("SELECT DISTINCT category FROM questions WHERE is_active = true")
+        categories = [r['category'] for r in rows if r['category']]
+        return ArenaConfigOptions(categories=categories)
 
     async def create_arena(self, host_user_id: str, data: ArenaCreate) -> ArenaResponse:
         # Create arena and add host as participant within a transaction

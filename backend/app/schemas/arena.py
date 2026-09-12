@@ -1,5 +1,5 @@
 from typing import Optional, List, Any
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
@@ -19,9 +19,9 @@ class QuestionDifficulty(str, Enum):
 class ArenaBase(BaseModel):
     category: Optional[str] = None
     difficulty: Optional[QuestionDifficulty] = None
-    max_participants: int = 2
-    max_rounds: int = 5
-    time_limit_seconds: int = 30
+    max_participants: int = Field(default=2, ge=2, le=8)
+    max_rounds: int = Field(default=5, ge=1, le=20)
+    time_limit_seconds: int = Field(default=30, ge=5, le=300)
     metadata: Optional[dict] = None
 
 class ArenaCreate(ArenaBase):
