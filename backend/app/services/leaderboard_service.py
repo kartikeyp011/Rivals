@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from asyncpg import Connection
 from datetime import datetime
 import zoneinfo
@@ -29,3 +29,6 @@ class LeaderboardService:
 
     async def get_friends_leaderboard(self, user_id: str, period: str, period_key: str, limit: int = 100) -> List[LeaderboardEntry]:
         return await self.repo.get_friends_leaderboard(user_id, period, period_key, limit)
+
+    async def get_user_leaderboard(self, user_id: str, period: str, period_key: str) -> Optional[LeaderboardEntry]:
+        return await self.repo.get_user_rank(user_id, period, period_key)

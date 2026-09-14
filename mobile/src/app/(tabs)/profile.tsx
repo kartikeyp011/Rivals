@@ -1,22 +1,35 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { getCoinState } from '@/state/coinState';
-import { getStreakState } from '@/state/streakState';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
+import * as api from '@/lib/api';
 import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
     const [coins, setCoins] = useState(0);
     const [streak, setStreak] = useState(0);
-    const [displayName, setDisplayName] = useState<string>('Player Name');
+    const [displayName, setDisplayName] = useState<string>('Player');
     const [avatarUrl, setAvatarUrl] = useState<string>('👤');
 
-    useEffect(() => {
-        const coinState = getCoinState();
-        setCoins(coinState.balance);
-        const streakState = getStreakState();
-        setStreak(streakState.currentStreak);
+    useFocusEffect(
+        useCallback(() => {
+            const loadData = async () => {
+                try {
+                    const [coinBalance, streakData] = await Promise.all([
+                        api.getCoins().catch(() => 0),
+                        api.getStreak().catch(() => ({ current_streak: 0 }))
+                    ]);
+                    setCoins(coinBalance);
+                    setStreak(streakData.current_streak || 0);
+                } catch (e) {
+                    console.error("Failed to load dashboard data", e);
+                }
+            };
+            loadData();
+        }, [])
+    );
 
+    useEffect(() => {
         async function fetchProfile() {
             try {
                 const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -26,13 +39,13 @@ export default function ProfileScreen() {
 
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('display_name, avatar_url')
+                    .select('username, avatar_url')
                     .eq('id', user.id)
                     .single();
 
                 if (!profileError && profile) {
-                    if (profile.display_name) {
-                        setDisplayName(profile.display_name);
+                    if (profile.username) {
+                        setDisplayName('@' + profile.username);
                     }
                     if (profile.avatar_url) {
                         setAvatarUrl(profile.avatar_url);
@@ -52,7 +65,7 @@ export default function ProfileScreen() {
             <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
             </View>
-            <Text style={styles.name}>{displayName || 'Player Name'}</Text>
+            <Text style={styles.name}>{displayName}</Text>
             <View style={styles.card}>
                 <TouchableOpacity onPress={() => router.push('/coins/activity' as any)}>
                     <Text style={styles.cardTitle}>Coins</Text>

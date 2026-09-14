@@ -53,6 +53,13 @@ async def get_config_options(
 ):
     return await service.get_config_options()
 
+@router.get("/daily", response_model=ArenaResponse)
+async def get_daily_arena(
+    user_id: str = Depends(get_current_user),
+    service: ArenaService = Depends(get_arena_service)
+):
+    return await service.get_or_create_daily_arena(user_id)
+
 @router.get("/{arena_id}", response_model=ArenaResponse)
 async def get_arena(
     arena_id: uuid.UUID,

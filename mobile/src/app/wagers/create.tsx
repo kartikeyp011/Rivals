@@ -1,9 +1,15 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { getAcceptedFriends, Friend } from '@/state/friendState';
-import { createWager } from '@/state/wagerState';
-import { getCoinState } from '@/state/coinState';
+import * as api from '@/lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
+
+export interface Friend {
+  id: string;
+  name: string;
+  avatar: string;
+}
 
 type WagerType = '1v1' | 'multi';
 type StakeAmount = 10 | 25 | 50;
@@ -14,10 +20,26 @@ export default function CreateWagerScreen() {
   const [wagerType, setWagerType] = useState<WagerType>('1v1');
   const [stake, setStake] = useState<StakeAmount>(10);
   const [coins, setCoins] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setFriends(getAcceptedFriends());
-    setCoins(getCoinState().balance);
+    const loadData = async () => {
+      try {
+        const [friendsData, coinBalance] = await Promise.all([
+          api.getFriends(),
+          api.getCoins().catch(() => 0)
+        ]);
+        setFriends(friendsData.map((f: any) => ({
+          id: f.friend_id,
+          name: f.friend_display_name || f.friend_username,
+          avatar: f.friend_avatar_url || '👤',
+        })));
+        setCoins(coinBalance);
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    };
+    loadData();
   }, []);
 
   const toggleFriend = (friendId: string) => {
@@ -34,7 +56,7 @@ export default function CreateWagerScreen() {
     });
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (selectedFriends.length === 0) {
       Alert.alert('⚠️', 'Please select at least one friend');
       return;
@@ -55,12 +77,28 @@ export default function CreateWagerScreen() {
       return;
     }
 
-    const wager = createWager(wagerType, stake, selectedFriends);
-    if (wager) {
+    try {
+      setSubmitting(true);
+      const idempotencyKey = uuidv4();
+      
+      const arena = await api.createArena({
+        max_rounds: 3,
+        max_participants: wagerType === '1v1' ? 2 : selectedFriends.length + 1,
+        time_limit_seconds: 30
+      }, idempotencyKey);
+      
+      await api.createWager({ arena_id: arena.id, coin_amount: stake }, idempotencyKey);
+      
+      for (const friendId of selectedFriends) {
+        await api.sendInvite(arena.id, friendId, uuidv4());
+      }
+      
       Alert.alert('✅', 'Wager created successfully!');
-      router.replace('/wagers' as any);
-    } else {
-      Alert.alert('❌', 'Failed to create wager. Please try again.');
+      router.replace(`/arena/${arena.id}` as any);
+    } catch (err: any) {
+      Alert.alert('❌', err.message || 'Failed to create wager');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -164,14 +202,18 @@ export default function CreateWagerScreen() {
         <TouchableOpacity
           style={[
             styles.createButton,
-            (selectedFriends.length === 0 || (wagerType === '1v1' && selectedFriends.length !== 1)) && styles.createButtonDisabled,
+            (selectedFriends.length === 0 || (wagerType === '1v1' && selectedFriends.length !== 1) || submitting) && styles.createButtonDisabled,
           ]}
           onPress={handleCreate}
-          disabled={selectedFriends.length === 0 || (wagerType === '1v1' && selectedFriends.length !== 1)}
+          disabled={selectedFriends.length === 0 || (wagerType === '1v1' && selectedFriends.length !== 1) || submitting}
         >
-          <Text style={styles.createButtonText}>
-            Create Wager (🪙 {stake * (wagerType === '1v1' ? 2 : selectedFriends.length + 1)} pool)
-          </Text>
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.createButtonText}>
+              Create Wager (🪙 {stake * (wagerType === '1v1' ? 2 : selectedFriends.length + 1)} pool)
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>

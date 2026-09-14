@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Query
-from typing import List
+from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import List, Optional
 from app.schemas.leaderboard import LeaderboardEntry
 from app.core.db import get_db_connection
 from asyncpg import Connection
@@ -29,3 +29,16 @@ async def get_friends_leaderboard(
 ):
     service = LeaderboardService(conn)
     return await service.get_friends_leaderboard(current_user_id, period, period_key, limit)
+
+@router.get("/me", response_model=LeaderboardEntry)
+async def get_user_leaderboard_entry(
+    period: str = Query("daily", description="daily or all_time"),
+    period_key: str = Query(..., description="Date string (YYYY-MM-DD) or 'all_time'"),
+    current_user_id: str = Depends(get_current_user),
+    conn: Connection = Depends(get_db_connection)
+):
+    service = LeaderboardService(conn)
+    entry = await service.get_user_leaderboard(current_user_id, period, period_key)
+    if not entry:
+        raise HTTPException(status_code=404, detail="No leaderboard entry found for this user in this period")
+    return entry

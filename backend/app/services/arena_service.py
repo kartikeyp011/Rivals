@@ -1,6 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 from asyncpg import Connection
+from datetime import datetime, timezone
 
 from app.schemas.arena import ArenaCreate, ArenaResponse
 from app.schemas.config import ArenaConfigOptions
@@ -59,6 +60,71 @@ class ArenaService:
                 )
 
             return arena
+
+    async def get_or_create_daily_arena(self, user_id: str) -> ArenaResponse:
+        now = datetime.now(timezone.utc)
+        daily_date = now.strftime('%Y-%m-%d')
+        
+        # We need a transaction-level advisory lock
+        import hashlib
+        hash_str = f"{user_id}_{daily_date}"
+        lock_id = int.from_bytes(hashlib.sha256(hash_str.encode()).digest()[:8], 'little', signed=True)
+
+        async with self.conn.transaction():
+            # Acquire transaction-level lock (waits until available)
+            await self.conn.execute("SELECT pg_advisory_xact_lock($1)", lock_id)
+            
+            # Re-query
+            row = await self.conn.fetchrow(
+                """
+                SELECT id FROM arenas 
+                WHERE host_user_id = $1 
+                AND category = 'daily'
+                AND metadata->>'date' = $2
+                """,
+                UUID(user_id), daily_date
+            )
+            
+            if row:
+                return await self.get_arena(row['id'], user_id)
+                
+            # Get 3 questions deterministically for this date
+            questions = await self.conn.fetch(
+                """
+                SELECT id, category, difficulty 
+                FROM questions 
+                WHERE is_active = true 
+                ORDER BY md5($1 || id::text)
+                LIMIT 3
+                """,
+                daily_date
+            )
+            
+            if len(questions) < 3:
+                raise ConflictError("Not enough questions available for the Daily Arena")
+                
+            # Create the arena
+            data = ArenaCreate(
+                category='daily',
+                max_participants=2,
+                max_rounds=3,
+                time_limit_seconds=60,
+                metadata={'type': 'daily', 'date': daily_date}
+            )
+            
+            arena = await self.arena_repo.create_arena(user_id, data)
+            await self.participant_repo.create_participant(arena.id, user_id, status='active')
+            
+            for round_num, q in enumerate(questions, start=1):
+                await self.conn.execute(
+                    """
+                    INSERT INTO arena_rounds (arena_id, round_number, question_id, status)
+                    VALUES ($1, $2, $3, 'pending')
+                    """,
+                    arena.id, round_num, q['id']
+                )
+                
+            return await self.get_arena(arena.id, user_id)
 
     async def get_arena(self, arena_id: UUID, user_id: str) -> ArenaResponse:
         arena = await self.arena_repo.get_arena(arena_id)

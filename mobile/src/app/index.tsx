@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 export default function WelcomeScreen() {
+  const { signIn: signInGoogle, loading: loadingGoogle } = useGoogleAuth();
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
@@ -29,18 +31,17 @@ export default function WelcomeScreen() {
         </View>
 
         <TouchableOpacity 
-          style={styles.primaryButton}
-          onPress={() => router.push('/auth/sign-up')}
+          style={styles.googleButton}
+          onPress={signInGoogle}
+          disabled={loadingGoogle}
         >
-          <Text style={styles.primaryButtonText}>Get Started</Text>
+          {loadingGoogle ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.secondaryButton}
-          onPress={() => router.push('/auth/sign-in')}
-        >
-          <Text style={styles.secondaryButtonText}>I already have an account</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
     color: '#ccccdd',
     fontSize: 16,
   },
-  primaryButton: {
+  googleButton: {
     backgroundColor: '#6c5ce7',
     paddingVertical: 16,
     borderRadius: 14,
@@ -101,16 +102,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  primaryButtonText: {
+  googleButtonText: {
     color: '#ffffff',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  secondaryButton: {
-    paddingVertical: 12,
+  appleButton: {
+    backgroundColor: '#1a1a3a',
+    paddingVertical: 16,
+    borderRadius: 14,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a5a',
   },
-  secondaryButtonText: {
-    color: '#8888aa',
-    fontSize: 14,
+  appleButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

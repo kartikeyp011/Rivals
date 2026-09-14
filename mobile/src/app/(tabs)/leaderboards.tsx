@@ -1,6 +1,17 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
-import { getLeaderboardData, getFriendsLeaderboard, getGlobalLeaderboard, getUserRank, refreshLeaderboards, LeaderboardEntry } from '@/state/leaderboardState';
+import { supabase } from '@/lib/supabase';
+import * as api from '@/lib/api';
+
+export interface LeaderboardEntry {
+  id: string;
+  name: string;
+  avatar: string;
+  score: number;
+  rank: number;
+  isFriend: boolean;
+  isUser: boolean;
+}
 
 type LeaderboardType = 'friends' | 'global';
 type TimeType = 'daily' | 'allTime';
@@ -12,13 +23,43 @@ export default function LeaderboardsScreen() {
   const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = () => {
-    const data = activeTab === 'friends' 
-      ? getFriendsLeaderboard(timeType)
-      : getGlobalLeaderboard(timeType);
-    setEntries(data);
-    const user = getUserRank(timeType);
-    setUserRank(user || null);
+  const loadData = async () => {
+    setRefreshing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id;
+
+      let rawData;
+      
+      const now = new Date();
+      const periodKey = timeType === 'daily' ? now.toISOString().split('T')[0] : 'all_time';
+
+      if (activeTab === 'friends') {
+        rawData = await api.getFriendsLeaderboard(timeType, periodKey);
+      } else {
+        rawData = await api.getGlobalLeaderboard(timeType, periodKey);
+      }
+
+      const mappedData: LeaderboardEntry[] = rawData.map((item: any, index: number) => ({
+        id: item.id,
+        name: item.username || 'Unknown',
+        avatar: item.avatar_url || '👤',
+        score: item.score,
+        rank: item.rank || index + 1,
+        isFriend: activeTab === 'friends' && item.user_id !== currentUserId,
+        isUser: item.user_id === currentUserId
+      }));
+
+      setEntries(mappedData);
+      
+      const userRankEntry = mappedData.find(e => e.isUser);
+      setUserRank(userRankEntry || null);
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert('Error', e.message || 'Failed to load leaderboards');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -26,10 +67,7 @@ export default function LeaderboardsScreen() {
   }, [activeTab, timeType]);
 
   const onRefresh = () => {
-    setRefreshing(true);
-    refreshLeaderboards();
     loadData();
-    setRefreshing(false);
   };
 
   const getMedal = (rank: number) => {
@@ -92,7 +130,7 @@ export default function LeaderboardsScreen() {
           <Text style={styles.userRankEmoji}>{userRank.avatar}</Text>
           <View style={styles.userRankInfo}>
             <Text style={styles.userRankName}>{userRank.name} (You)</Text>
-            <Text style={styles.userRankScore}>{userRank.score} pts</Text>
+            <Text style={styles.userRankScore}>Score: {userRank.score}</Text>
           </View>
           <View style={styles.userRankBadge}>
             <Text style={styles.userRankBadgeText}>#{userRank.rank}</Text>
@@ -105,34 +143,48 @@ export default function LeaderboardsScreen() {
         style={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c5ce7" />
         }
       >
-        {entries.map((entry, index) => (
-          <View key={entry.id} style={[
-            styles.entry,
-            entry.isUser && styles.userEntry,
-            index === 0 && styles.firstEntry,
-          ]}>
-            <View style={styles.entryLeft}>
-              <Text style={styles.entryRank}>{getMedal(entry.rank)}</Text>
-              <Text style={styles.entryAvatar}>{entry.avatar}</Text>
-              <View style={styles.entryInfo}>
-                <Text style={[
-                  styles.entryName,
-                  entry.isUser && styles.userName
-                ]}>
-                  {entry.name}{entry.isUser ? ' (You)' : ''}
-                  {entry.isFriend && !entry.isUser && ' ⭐'}
-                </Text>
-                {entry.isFriend && !entry.isUser && (
-                  <Text style={styles.friendBadge}>Friend</Text>
-                )}
-              </View>
-            </View>
-            <Text style={styles.entryScore}>{entry.score}</Text>
+        {!refreshing && entries.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 50 }}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>
+              {activeTab === 'friends' ? '👥' : '🌍'}
+            </Text>
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
+              No Scores Yet
+            </Text>
+            <Text style={{ color: '#888', marginTop: 8 }}>
+              {activeTab === 'friends' ? "None of your friends have played yet." : "No one has played yet."}
+            </Text>
           </View>
-        ))}
+        ) : (
+          entries.map((entry, index) => (
+            <View key={entry.id} style={[
+              styles.entry,
+              entry.isUser && styles.userEntry,
+              index === 0 && styles.firstEntry,
+            ]}>
+              <View style={styles.entryLeft}>
+                <Text style={styles.entryRank}>{getMedal(entry.rank)}</Text>
+                <Text style={styles.entryAvatar}>{entry.avatar}</Text>
+                <View style={styles.entryInfo}>
+                  <Text style={[
+                    styles.entryName,
+                    entry.isUser && styles.userName
+                  ]}>
+                    {entry.name}{entry.isUser ? ' (You)' : ''}
+                    {entry.isFriend && !entry.isUser && ' ⭐'}
+                  </Text>
+                  {entry.isFriend && !entry.isUser && (
+                    <Text style={styles.friendBadge}>Friend</Text>
+                  )}
+                </View>
+              </View>
+              <Text style={styles.entryScore}>{entry.score}</Text>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );

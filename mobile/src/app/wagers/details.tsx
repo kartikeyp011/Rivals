@@ -1,47 +1,62 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as api from '@/lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import { useState, useEffect } from 'react';
-import { getWagers, acceptWager, declineWager, mockResolveWager, Wager } from '@/state/wagerState';
+import { getWager, acceptWager, declineWager } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 
 export default function WagerDetailsScreen() {
   const params = useLocalSearchParams();
   const wagerId = params.id as string;
-  const [wager, setWager] = useState<Wager | null>(null);
+  const [wager, setWager] = useState<any | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const found = getWagers().find(w => w.id === wagerId);
-    setWager(found || null);
-  }, [wagerId]);
+  useFocusEffect(
+    useCallback(() => {
+      loadWager();
+    }, [wagerId])
+  );
 
-  const handleAccept = () => {
-    if (!wager) return;
-    const success = acceptWager(wager.id);
-    if (success) {
-      Alert.alert('✅', 'Wager accepted! Your stake is locked.');
-      const updated = getWagers().find(w => w.id === wagerId);
-      setWager(updated || null);
-    } else {
-      Alert.alert('❌', 'Failed to accept wager.');
+  const loadWager = async () => {
+    try {
+      const data = await getWager(wagerId);
+      setWager(data);
+      const { data: { session } } = await supabase.auth.getSession();
+      setCurrentUserId(session?.user?.id || null);
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const handleDecline = () => {
-    if (!wager) return;
-    const success = declineWager(wager.id);
-    if (success) {
+  const handleAccept = async () => {
+    try {
+      const idempotencyKey = uuidv4();
+      await acceptWager(wagerId, idempotencyKey);
+      Alert.alert('✅', 'Wager accepted! Your stake is locked.');
+      loadWager();
+    } catch (err: any) {
+      Alert.alert('❌', err.message || 'Failed to accept wager.');
+    }
+  };
+
+  const handleDecline = async () => {
+    try {
+      const idempotencyKey = uuidv4();
+      await declineWager(wagerId, idempotencyKey);
       Alert.alert('✅', 'Wager declined.');
       router.back();
-    } else {
-      Alert.alert('❌', 'Failed to decline wager.');
+    } catch (err: any) {
+      Alert.alert('❌', err.message || 'Failed to decline wager.');
     }
   };
 
   const handleResolve = () => {
-    if (!wager) return;
-    mockResolveWager(wager.id);
-    const updated = getWagers().find(w => w.id === wagerId);
-    setWager(updated || null);
-    Alert.alert('✅', 'Wager resolved! Check results.');
+    // Wagers are resolved automatically by the backend when the Arena completes
+    Alert.alert('ℹ️', 'Wagers resolve automatically when all players complete the Arena.');
   };
 
   if (!wager) {
@@ -61,9 +76,10 @@ export default function WagerDetailsScreen() {
     );
   }
 
-  const isCreator = wager.creatorId === '1';
-  const isInvited = wager.participants.some(p => p.userId === '1' && p.status === 'invited');
-  const isAccepted = wager.participants.some(p => p.userId === '1' && p.status === 'accepted');
+  const isCreator = wager.created_by === currentUserId;
+  // If the wager is open and the user is NOT in the participants list, they are pending an invite
+  const isInvited = wager.status === 'open' && !wager.participants.some((p: any) => p.user_id === currentUserId) && !isCreator;
+  const isAccepted = wager.participants.some((p: any) => p.user_id === currentUserId);
 
   return (
     <View style={styles.container}>
@@ -80,51 +96,42 @@ export default function WagerDetailsScreen() {
         {/* Status Card */}
         <View style={styles.statusCard}>
           <Text style={styles.wagerType}>
-            {wager.type === '1v1' ? '⚔️ 1v1 Wager' : '👥 Multi-Friend Wager'}
+            Arena Wager
           </Text>
           <Text style={[styles.wagerStatus, 
-            wager.status === 'pending' && styles.statusPending,
-            wager.status === 'active' && styles.statusActive,
-            wager.status === 'resolved' && styles.statusResolved,
+            wager.status === 'open' && styles.statusPending,
+            wager.status === 'locked' && styles.statusActive,
+            wager.status === 'settled' && styles.statusResolved,
           ]}>
             {wager.status.toUpperCase()}
           </Text>
-          <Text style={styles.wagerStake}>🪙 {wager.stake} coins per player</Text>
+          <Text style={styles.wagerStake}>🪙 {wager.coin_amount} coins per player</Text>
           <Text style={styles.wagerPool}>
-            Total Pool: 🪙 {wager.stake * wager.participants.length}
+            Total Pot: 🪙 {wager.total_pot}
           </Text>
         </View>
 
         {/* Participants */}
         <Text style={styles.sectionTitle}>Participants</Text>
-        {wager.participants.map((p, idx) => (
+        {wager.participants.map((p: any, idx: number) => (
           <View key={idx} style={styles.participantItem}>
-            <Text style={styles.participantAvatar}>{p.avatar}</Text>
+            <Text style={styles.participantAvatar}>👤</Text>
             <View style={styles.participantInfo}>
               <Text style={styles.participantName}>
-                {p.name} {p.userId === '1' && '(You)'}
+                Player {p.user_id.substring(0, 8)} {p.user_id === currentUserId && '(You)'}
               </Text>
-              <Text style={[
-                styles.participantStatus,
-                p.status === 'accepted' && styles.statusAccepted,
-                p.status === 'invited' && styles.statusInvited,
-                p.status === 'completed' && styles.statusCompleted,
-                p.status === 'declined' && styles.statusDeclined,
-              ]}>
-                {p.status === 'accepted' && '✅ Accepted'}
-                {p.status === 'invited' && '⏳ Invited'}
-                {p.status === 'completed' && '✓ Completed'}
-                {p.status === 'declined' && '❌ Declined'}
+              <Text style={[styles.participantStatus, styles.statusAccepted]}>
+                ✅ Accepted
               </Text>
             </View>
-            {p.score !== undefined && (
-              <Text style={styles.participantScore}>{p.score} pts</Text>
+            {p.coins_won !== null && p.coins_won !== undefined && (
+              <Text style={styles.participantScore}>Won: {p.coins_won} 🪙</Text>
             )}
           </View>
         ))}
 
         {/* Actions */}
-        {wager.status === 'pending' && isInvited && (
+        {wager.status === 'open' && isInvited && (
           <View style={styles.actionContainer}>
             <TouchableOpacity style={styles.acceptButton} onPress={handleAccept}>
               <Text style={styles.acceptButtonText}>✅ Accept Wager</Text>
@@ -135,25 +142,16 @@ export default function WagerDetailsScreen() {
           </View>
         )}
 
-        {wager.status === 'pending' && isCreator && !isInvited && (
+        {wager.status === 'open' && isCreator && !isInvited && (
           <View style={styles.actionContainer}>
             <Text style={styles.waitingText}>⏳ Waiting for others to accept...</Text>
           </View>
         )}
 
-        {wager.status === 'active' && isCreator && (
-          <TouchableOpacity style={styles.resolveButton} onPress={handleResolve}>
-            <Text style={styles.resolveButtonText}>⚔️ Resolve Wager (Test)</Text>
+        {wager.status === 'locked' && (
+          <TouchableOpacity style={styles.resolveButton} onPress={() => router.push(`/arena/${wager.arena_id}` as any)}>
+            <Text style={styles.resolveButtonText}>⚔️ Go to Arena</Text>
           </TouchableOpacity>
-        )}
-
-        {wager.status === 'resolved' && wager.winnerId && (
-          <View style={styles.winnerCard}>
-            <Text style={styles.winnerEmoji}>🏆</Text>
-            <Text style={styles.winnerText}>
-              Winner: {wager.participants.find(p => p.userId === wager.winnerId)?.name}
-            </Text>
-          </View>
         )}
       </ScrollView>
     </View>

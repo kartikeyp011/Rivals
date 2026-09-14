@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getArenaRounds, submitAttempt } from '../../lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function PlayRoundScreen() {
   const { arenaId, roundId } = useLocalSearchParams<{ arenaId: string, roundId: string }>();
@@ -74,7 +76,7 @@ export default function PlayRoundScreen() {
       setTransientFeedback(null);
       
       const responseMs = Date.now() - startTime;
-      const idempotencyKey = Math.random().toString(36).substring(7);
+      const idempotencyKey = uuidv4();
       
       const attemptRes = await submitAttempt(arenaId, roundId, selected, responseMs, idempotencyKey);
       

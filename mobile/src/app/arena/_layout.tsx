@@ -9,9 +9,6 @@ export default function ArenaLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="word-duel" />
-      <Stack.Screen name="cipher-break" />
-      <Stack.Screen name="number-rush" />
       <Stack.Screen name="results" />
     </Stack>
   );

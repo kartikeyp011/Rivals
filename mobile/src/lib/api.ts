@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-const API_BASE_URL = 'http://127.0.0.1:8000'; // FastAPI backend
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+if (!API_BASE_URL) {
+  console.warn("EXPO_PUBLIC_API_URL is not set!");
+}
 
 // Helper to get auth headers
 export async function getAuthHeaders(idempotencyKey?: string) {
@@ -48,6 +51,26 @@ export async function getArena(arenaId: string) {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}`, { headers });
   if (!res.ok) throw new Error('Failed to fetch arena');
+  return res.json();
+}
+
+export async function cancelArena(arenaId: string, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/cancel`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to cancel arena');
+  }
+  return res.json();
+}
+
+export async function getArenaResults(arenaId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/results`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch arena results');
   return res.json();
 }
 
@@ -196,5 +219,134 @@ export async function getParticipants(arenaId: string) {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/participants`, { headers });
   if (!res.ok) throw new Error('Failed to fetch participants');
+  return res.json();
+}
+
+// 11. Leaderboards API
+export async function getGlobalLeaderboard(period: string = 'daily', periodKey: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/leaderboards/global?period=${period}&period_key=${periodKey}`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch global leaderboard');
+  return res.json();
+}
+
+export async function getFriendsLeaderboard(period: string = 'daily', periodKey: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/leaderboards/friends?period=${period}&period_key=${periodKey}`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch friends leaderboard');
+  return res.json();
+}
+
+export async function getLeaderboardMe(period: string = 'daily', periodKey: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/leaderboards/me?period=${period}&period_key=${periodKey}`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch user leaderboard rank');
+  return res.json();
+}
+
+// 12. Arenas API (List)
+export async function getArenas() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch arenas');
+  return res.json();
+}
+
+export async function getDailyArena() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/daily`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch daily arena');
+  return res.json();
+}
+
+// 13. Coins API
+export async function getCoins() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/coins/balance`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch coins');
+  const data = await res.json();
+  return data.balance;
+}
+
+export async function getCoinTransactions() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/coins/transactions`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch coin transactions');
+  return res.json();
+}
+
+// 14. Streaks API
+export async function getStreak() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/streaks/me`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch streak');
+  return res.json();
+}
+
+export async function recoverStreak(idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/streaks/recover`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to recover streak');
+  }
+  return res.json();
+}
+
+// 15. Wagers API
+export async function getWagers() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/wagers`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch wagers');
+  return res.json();
+}
+
+export async function getWager(wagerId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/wagers/${wagerId}`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch wager');
+  return res.json();
+}
+
+export async function createWager(payload: any, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/wagers`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to create wager');
+  }
+  return res.json();
+}
+
+export async function acceptWager(wagerId: string, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/wagers/${wagerId}/accept`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to accept wager');
+  }
+  return res.json();
+}
+
+export async function declineWager(wagerId: string, idempotencyKey: string) {
+  const headers = await getAuthHeaders(idempotencyKey);
+  const res = await fetch(`${API_BASE_URL}/api/v1/wagers/${wagerId}/decline`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to decline wager');
+  }
   return res.json();
 }

@@ -20,7 +20,7 @@ export default function SignUpScreen() {
       email,
       password,
       options: {
-        emailRedirectTo: 'mobile://auth/callback',
+        emailRedirectTo: 'rivals://auth/callback',
       },
     });
     setLoading(false);

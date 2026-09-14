@@ -1,44 +1,75 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { getWagers, getIncomingWagers, getActiveWagers, getCompletedWagers, Wager } from '@/state/wagerState';
+import { useState, useEffect, useCallback } from 'react';
+import * as api from '@/lib/api';
+import { useFocusEffect } from 'expo-router';
 
 type TabType = 'incoming' | 'active' | 'completed';
 
 export default function WagersScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('incoming');
-  const [wagers, setWagers] = useState<Wager[]>([]);
+  const [wagers, setWagers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const loadData = () => {
-    if (activeTab === 'incoming') {
-      setWagers(getIncomingWagers());
-    } else if (activeTab === 'active') {
-      setWagers(getActiveWagers());
-    } else {
-      setWagers(getCompletedWagers());
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [activeTab])
+  );
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getWagers();
+      
+      // Need current user ID to determine incoming vs active
+      // In a real app we'd get this from a context. For now, fetch session.
+      const { supabase } = require('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      setCurrentUserId(uid);
+
+      let filtered = [];
+      if (activeTab === 'incoming') {
+        filtered = data.filter((w: any) => 
+          w.status === 'open' && 
+          w.created_by !== uid && 
+          !w.participants.some((p: any) => p.user_id === uid)
+        );
+      } else if (activeTab === 'active') {
+        filtered = data.filter((w: any) => 
+          w.status === 'locked' || 
+          (w.status === 'open' && (w.created_by === uid || w.participants.some((p: any) => p.user_id === uid)))
+        );
+      } else {
+        filtered = data.filter((w: any) => w.status === 'settled' || w.status === 'voided');
+      }
+
+      setWagers(filtered);
+    } catch (e) {
+      console.error('Failed to load wagers', e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab]);
-
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'pending': return '⏳ Pending';
-      case 'active': return '⚔️ Active';
-      case 'resolved': return '✅ Resolved';
-      case 'expired': return '⏰ Expired';
+      case 'open': return '⏳ Pending';
+      case 'locked': return '⚔️ Active';
+      case 'settled': return '✅ Resolved';
+      case 'voided': return '⏰ Voided';
       default: return status;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return '#fdcb6e';
-      case 'active': return '#6c5ce7';
-      case 'resolved': return '#00b894';
-      case 'expired': return '#ff6b6b';
+      case 'open': return '#fdcb6e';
+      case 'locked': return '#6c5ce7';
+      case 'settled': return '#00b894';
+      case 'voided': return '#ff6b6b';
       default: return '#666';
     }
   };
@@ -86,7 +117,9 @@ export default function WagersScreen() {
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {wagers.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator size="large" color="#6c5ce7" style={{ marginTop: 40 }} />
+        ) : wagers.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>
               {activeTab === 'incoming' && '📭'}
@@ -121,26 +154,17 @@ export default function WagersScreen() {
             >
               <View style={styles.wagerHeader}>
                 <Text style={styles.wagerType}>
-                  {wager.type === '1v1' ? '⚔️ 1v1' : '👥 Multi'}
+                  🪙 Pot: {wager.total_pot}
                 </Text>
                 <Text style={[styles.wagerStatus, { color: getStatusColor(wager.status) }]}>
                   {getStatusText(wager.status)}
                 </Text>
               </View>
               <View style={styles.wagerBody}>
-                <Text style={styles.wagerStake}>🪙 {wager.stake} coins</Text>
+                <Text style={styles.wagerStake}>🪙 {wager.coin_amount} coins</Text>
                 <Text style={styles.wagerParticipants}>
-                  {wager.participants.length} participants
+                  {wager.participants.length} joined
                 </Text>
-              </View>
-              <View style={styles.wagerParticipantsList}>
-                {wager.participants.map((p, idx) => (
-                  <Text key={idx} style={styles.participantName}>
-                    {p.avatar} {p.name}
-                    {p.status === 'accepted' && ' ✅'}
-                    {p.status === 'invited' && ' ⏳'}
-                  </Text>
-                ))}
               </View>
             </TouchableOpacity>
           ))
@@ -281,15 +305,5 @@ const styles = StyleSheet.create({
   wagerParticipants: {
     color: '#8888aa',
     fontSize: 14,
-  },
-  wagerParticipantsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  participantName: {
-    color: '#8888aa',
-    fontSize: 12,
-    marginRight: 8,
   },
 });

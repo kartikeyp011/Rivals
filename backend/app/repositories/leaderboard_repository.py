@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from asyncpg import Connection
 from app.schemas.leaderboard import LeaderboardEntry
@@ -83,3 +83,32 @@ class LeaderboardRepository:
             d['user_id'] = str(d['user_id'])
             result.append(LeaderboardEntry(**d))
         return result
+
+    async def get_user_rank(self, user_id: str, period: str, period_key: str) -> Optional[LeaderboardEntry]:
+        row = await self.conn.fetchrow(
+            """
+            WITH UserScore AS (
+                SELECT score FROM leaderboards 
+                WHERE user_id = $1 AND period = $2 AND period_key = $3
+            ),
+            RankInfo AS (
+                SELECT COUNT(*) + 1 as rank
+                FROM leaderboards l
+                JOIN profiles p ON l.user_id = p.id
+                WHERE l.period = $2 AND l.period_key = $3 AND p.global_opt_in = TRUE
+                AND l.score > (SELECT score FROM UserScore)
+            )
+            SELECT l.*, p.username, p.display_name, p.avatar_url, r.rank
+            FROM leaderboards l
+            JOIN profiles p ON l.user_id = p.id
+            CROSS JOIN RankInfo r
+            WHERE l.user_id = $1 AND l.period = $2 AND l.period_key = $3
+            """,
+            UUID(user_id), period, period_key
+        )
+        if row:
+            d = dict(row)
+            d['id'] = str(d['id'])
+            d['user_id'] = str(d['user_id'])
+            return LeaderboardEntry(**d)
+        return None

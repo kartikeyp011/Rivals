@@ -1,8 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { getCoinState } from '@/state/coinState';
-import { getStreakState } from '@/state/streakState';
+import { router, useFocusEffect } from 'expo-router';
+import { useState, useEffect, useCallback } from 'react';
 import * as api from '@/lib/api';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +9,9 @@ export default function HomeScreen() {
     const [coins, setCoins] = useState(0);
     const [streak, setStreak] = useState(0);
     const [invites, setInvites] = useState<any[]>([]);
+    const [globalRank, setGlobalRank] = useState<string>('--');
+    const [friendsRank, setFriendsRank] = useState<string>('--');
+    const [dailyArenaLoading, setDailyArenaLoading] = useState(false);
 
     const loadInvites = async () => {
         try {
@@ -23,15 +24,35 @@ export default function HomeScreen() {
         }
     };
 
+    useFocusEffect(
+        useCallback(() => {
+            const loadData = async () => {
+                try {
+                    const [coinBalance, streakData] = await Promise.all([
+                        api.getCoins().catch(() => 0),
+                        api.getStreak().catch(() => ({ current_streak: 0 }))
+                    ]);
+                    setCoins(coinBalance);
+                    setStreak(streakData.current_streak || 0);
+
+                    const now = new Date();
+                    const todayStr = now.toISOString().split('T')[0];
+                    const [globalMe, friendsMe] = await Promise.all([
+                        api.getLeaderboardMe('daily', todayStr).catch(() => null),
+                        api.getLeaderboardMe('daily', todayStr).catch(() => null) // Friends rank doesn't have a separate endpoint, but global rank is basically the same logic except pool size. Wait, getLeaderboardMe handles it? No, getLeaderboardMe currently just gets global rank in the query (global_opt_in=TRUE). For friends, we'd need another endpoint, but for now we can just show global for both or leave friends as --. Actually, let's just use the global rank for the badge for now. 
+                    ]);
+                    
+                    if (globalMe) setGlobalRank(`#${globalMe.rank}`);
+                } catch (e) {
+                    console.error("Failed to load dashboard data", e);
+                }
+            };
+            loadData();
+            loadInvites();
+        }, [])
+    );
+
     useEffect(() => {
-        const coinState = getCoinState();
-        setCoins(coinState.balance);
-        const streakState = getStreakState();
-        setStreak(streakState.currentStreak);
-        
-        loadInvites();
-        
-        // Polling as a fallback, but realtime would be better if we subscribe.
         const interval = setInterval(loadInvites, 5000);
         return () => clearInterval(interval);
     }, []);
@@ -53,6 +74,18 @@ export default function HomeScreen() {
             loadInvites();
         } catch (e: any) {
             Alert.alert('Error', e.message || 'Failed to decline invite');
+        }
+    };
+
+    const handlePlayDailyArena = async () => {
+        try {
+            setDailyArenaLoading(true);
+            const arena = await api.getDailyArena();
+            router.push(`/arena/${arena.id}` as any);
+        } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to load Daily Arena');
+        } finally {
+            setDailyArenaLoading(false);
         }
     };
 
@@ -82,7 +115,7 @@ export default function HomeScreen() {
                     onPress={() => router.push('/(tabs)/leaderboards')}
                 >
                     <Text style={styles.statIcon}>🏅</Text>
-                    <Text style={styles.statValue}>--</Text>
+                    <Text style={styles.statValue}>{friendsRank}</Text>
                     <Text style={styles.statLabel}>Friends Rank</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
@@ -90,7 +123,7 @@ export default function HomeScreen() {
                     onPress={() => router.push('/(tabs)/leaderboards')}
                 >
                     <Text style={styles.statIcon}>🌍</Text>
-                    <Text style={styles.statValue}>--</Text>
+                    <Text style={styles.statValue}>{globalRank}</Text>
                     <Text style={styles.statLabel}>Global Rank</Text>
                 </TouchableOpacity>
             </View>
@@ -134,11 +167,12 @@ export default function HomeScreen() {
                 <Text style={styles.cardText}>Word Duel • Cipher Break • Number Rush</Text>
                 
                 <TouchableOpacity 
-                    style={styles.cardButton} 
+                    style={[styles.cardButton, dailyArenaLoading && { opacity: 0.7 }]} 
                     activeOpacity={0.8}
-                    onPress={() => router.push('/arena')}
+                    onPress={handlePlayDailyArena}
+                    disabled={dailyArenaLoading}
                 >
-                    <Text style={styles.cardButtonText}>Play Now</Text>
+                    <Text style={styles.cardButtonText}>{dailyArenaLoading ? 'Loading...' : 'Play Now'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 

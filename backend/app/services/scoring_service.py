@@ -176,6 +176,20 @@ class ScoringService:
                 leaderboard_service = LeaderboardService(self.conn)
                 await leaderboard_service.record_score(uid, now, tz, total, is_winner)
                 
+                # Award Daily Reward for completing the Daily Arena
+                if arena.category == 'daily':
+                    from app.services.coin_service import CoinService
+                    from app.schemas.coin import CoinLedgerReason
+                    coin_service = CoinService(self.conn)
+                    DAILY_REWARD = 50
+                    await coin_service.add_coins(
+                        user_id=uid,
+                        amount=DAILY_REWARD,
+                        reason=CoinLedgerReason.daily_reward,
+                        reference_id=arena_id,
+                        reference_table='arenas'
+                    )
+                
                 rank += 1
             # Mark arena as completed
             await self.arena_repo.update_arena_status(arena_id, 'completed')

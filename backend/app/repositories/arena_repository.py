@@ -23,7 +23,10 @@ class ArenaRepository(BaseRepository):
             data.difficulty,
             json.dumps(data.metadata) if data.metadata else None
         )
-        return ArenaResponse(**dict(row))
+        row_dict = dict(row)
+        if row_dict.get('metadata') and isinstance(row_dict['metadata'], str):
+            row_dict['metadata'] = json.loads(row_dict['metadata'])
+        return ArenaResponse(**row_dict)
 
     async def get_arena(self, arena_id: UUID) -> Optional[ArenaResponse]:
         row = await self.conn.fetchrow(
@@ -31,8 +34,10 @@ class ArenaRepository(BaseRepository):
             str(arena_id)
         )
         if row:
-            # Need to parse jsonb if needed by schema, but Pydantic might handle simple types or we parse it
-            return ArenaResponse(**dict(row))
+            row_dict = dict(row)
+            if row_dict.get('metadata') and isinstance(row_dict['metadata'], str):
+                row_dict['metadata'] = json.loads(row_dict['metadata'])
+            return ArenaResponse(**row_dict)
         return None
 
     async def get_arenas_for_user(self, user_id: str) -> List[ArenaResponse]:
@@ -47,7 +52,13 @@ class ArenaRepository(BaseRepository):
             """,
             user_id
         )
-        return [ArenaResponse(**dict(r)) for r in rows]
+        res = []
+        for r in rows:
+            r_dict = dict(r)
+            if r_dict.get('metadata') and isinstance(r_dict['metadata'], str):
+                r_dict['metadata'] = json.loads(r_dict['metadata'])
+            res.append(ArenaResponse(**r_dict))
+        return res
 
     async def update_arena_status(self, arena_id: UUID, status: str, 
                                   start_time: Optional['datetime'] = None, 
@@ -80,5 +91,8 @@ class ArenaRepository(BaseRepository):
             *params
         )
         if row:
-            return ArenaResponse(**dict(row))
+            row_dict = dict(row)
+            if row_dict.get('metadata') and isinstance(row_dict['metadata'], str):
+                row_dict['metadata'] = json.loads(row_dict['metadata'])
+            return ArenaResponse(**row_dict)
         return None

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { getAuthHeaders } from '../../lib/api';
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
+import { getArenas } from '../../lib/api';
 
 export default function ArenasListScreen() {
   const [arenas, setArenas] = useState<any[]>([]);
@@ -17,10 +15,7 @@ export default function ArenasListScreen() {
   const fetchArenas = async () => {
     try {
       setLoading(true);
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${API_BASE_URL}/api/v1/arenas`, { headers });
-      if (!res.ok) throw new Error('Failed to fetch arenas');
-      const data = await res.json();
+      const data = await getArenas();
       setArenas(data);
     } catch (err: any) {
       setError(err.message || 'Error fetching arenas');

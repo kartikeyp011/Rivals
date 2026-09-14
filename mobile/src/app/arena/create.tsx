@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { getArenaConfigOptions, createArena } from '../../lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function CreateArenaScreen() {
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export default function CreateArenaScreen() {
       if (category) payload.category = category;
       if (difficulty) payload.difficulty = difficulty;
       
-      const idempotencyKey = Math.random().toString(36).substring(7);
+      const idempotencyKey = uuidv4();
       const arena = await createArena(payload, idempotencyKey);
       
       // Navigate to arena lobby

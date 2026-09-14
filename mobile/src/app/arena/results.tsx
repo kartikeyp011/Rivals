@@ -1,52 +1,71 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { rewardArenaCoins } from '@/state/coinState';
-import { updateStreak, getStreakState } from '@/state/streakState';
+import * as api from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 export default function ArenaResultsScreen() {
   const params = useLocalSearchParams();
-  
-  const wordPoints = parseInt(params.wordPoints as string) || 0;
-  const cipherPoints = parseInt(params.cipherPoints as string) || 0;
-  const numberPoints = parseInt(params.numberPoints as string) || 0;
-  const wordCorrect = params.wordCorrect === 'true';
-  const cipherCorrect = params.cipherCorrect === 'true';
-  const numberCorrect = params.numberCorrect === 'true';
-  
-  const totalScore = wordPoints + cipherPoints + numberPoints;
-  const correctCount = (wordCorrect ? 1 : 0) + (cipherCorrect ? 1 : 0) + (numberCorrect ? 1 : 0);
-  const maxPossibleScore = 100 + 150 + 200; // 450
-  const percentage = Math.round((totalScore / maxPossibleScore) * 100);
-  
+  const arenaId = params.arenaId as string;
+  const [result, setResult] = useState<any>(null);
+  const [earnedCoins, setEarnedCoins] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadResults = async () => {
+      try {
+        if (!arenaId) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        
+        const [resultsData, streakData] = await Promise.all([
+          api.getArenaResults(arenaId).catch(() => []),
+          api.getStreak().catch(() => ({ current_streak: 0 }))
+        ]);
+        
+        const myResult = resultsData.find((r: any) => r.user_id === userId) || resultsData[0];
+        setResult(myResult);
+        setCurrentStreak(streakData.current_streak || 0);
+        if (myResult) {
+          setEarnedCoins(myResult.coins_awarded);
+        }
+      } catch (err) {
+        console.error('Failed to load arena results', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadResults();
+  }, [arenaId]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#fff' }}>Loading results...</Text>
+      </View>
+    );
+  }
+
+  const totalScore = result?.total_score || 0;
+  const percentage = Math.min(100, Math.round((totalScore / 450) * 100)); // Default max possible 450
+  const correctCount = result?.rounds_won || 0;
+
   const getGrade = () => {
     if (percentage >= 80) return { label: '🏆 Excellent!', color: '#fdcb6e' };
     if (percentage >= 60) return { label: '⭐ Great Job!', color: '#00b894' };
     if (percentage >= 40) return { label: '💪 Keep Going!', color: '#6c5ce7' };
     return { label: '📚 Practice More!', color: '#ff6b6b' };
   };
-  
-  const grade = getGrade();
-  const [earnedCoins, setEarnedCoins] = useState(0);
-  const [currentStreak, setCurrentStreak] = useState(0);
 
-  // Reward coins and update streak when results are shown
-  useEffect(() => {
-    // Update streak
-    updateStreak();
-    const streakState = getStreakState();
-    setCurrentStreak(streakState.currentStreak);
-    // Reward coins
-    const earned = rewardArenaCoins(totalScore, correctCount);
-    setEarnedCoins(earned);
-    console.log(`🎉 Earned ${earned} coins for Arena completion!`);
-  }, []);
+  const grade = getGrade();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🏆 Arena Complete!</Text>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', marginTop: 8, color: grade.color }}>{grade.label}</Text>
       </View>
 
       {/* Score Card */}
@@ -65,54 +84,26 @@ export default function ArenaResultsScreen() {
 
       {/* Round Breakdown */}
       <View style={styles.breakdownCard}>
-        <Text style={styles.breakdownTitle}>📊 Round Breakdown</Text>
+        <Text style={styles.breakdownTitle}>📊 Statistics</Text>
+        <View style={styles.roundRow}>
+          <View style={styles.roundInfo}>
+            <Text style={styles.roundIcon}>🏆</Text>
+            <Text style={styles.roundName}>Final Rank</Text>
+          </View>
+          <View style={styles.roundResult}>
+            <Text style={styles.roundPoints}>#{result?.final_rank || 1}</Text>
+          </View>
+        </View>
+        
+        <View style={styles.divider} />
         
         <View style={styles.roundRow}>
           <View style={styles.roundInfo}>
-            <Text style={styles.roundIcon}>📝</Text>
-            <Text style={styles.roundName}>Word Duel</Text>
+            <Text style={styles.roundIcon}>✅</Text>
+            <Text style={styles.roundName}>Rounds Won</Text>
           </View>
           <View style={styles.roundResult}>
-            <Text style={[styles.roundPoints, wordCorrect ? styles.correct : styles.incorrect]}>
-              {wordPoints} pts
-            </Text>
-            <Text style={[styles.roundStatus, wordCorrect ? styles.correctText : styles.incorrectText]}>
-              {wordCorrect ? '✅' : '❌'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.roundRow}>
-          <View style={styles.roundInfo}>
-            <Text style={styles.roundIcon}>🔐</Text>
-            <Text style={styles.roundName}>Cipher Break</Text>
-          </View>
-          <View style={styles.roundResult}>
-            <Text style={[styles.roundPoints, cipherCorrect ? styles.correct : styles.incorrect]}>
-              {cipherPoints} pts
-            </Text>
-            <Text style={[styles.roundStatus, cipherCorrect ? styles.correctText : styles.incorrectText]}>
-              {cipherCorrect ? '✅' : '❌'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.roundRow}>
-          <View style={styles.roundInfo}>
-            <Text style={styles.roundIcon}>🔢</Text>
-            <Text style={styles.roundName}>Number Rush</Text>
-          </View>
-          <View style={styles.roundResult}>
-            <Text style={[styles.roundPoints, numberCorrect ? styles.correct : styles.incorrect]}>
-              {numberPoints} pts
-            </Text>
-            <Text style={[styles.roundStatus, numberCorrect ? styles.correctText : styles.incorrectText]}>
-              {numberCorrect ? '✅' : '❌'}
-            </Text>
+            <Text style={styles.roundPoints}>{result?.rounds_won || 0} / {result?.rounds_played || 0}</Text>
           </View>
         </View>
       </View>

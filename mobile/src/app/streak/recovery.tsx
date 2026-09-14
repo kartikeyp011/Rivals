@@ -1,25 +1,43 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { getStreakState, getRecoveryAvailable, useRecovery } from '@/state/streakState';
+import * as api from '@/lib/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function StreakRecoveryScreen() {
   const [streak, setStreak] = useState(0);
   const [recoveryAvailable, setRecoveryAvailable] = useState(false);
   const [recovered, setRecovered] = useState(false);
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const state = getStreakState();
-    setStreak(state.currentStreak);
-    setRecoveryAvailable(getRecoveryAvailable());
+    const fetchStreak = async () => {
+      try {
+        const state = await api.getStreak();
+        setStreak(state.current_streak);
+        setRecoveryAvailable(state.recovery_available);
+      } catch (e) {
+        console.error('Failed to fetch streak', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStreak();
   }, []);
 
-  const handleRecover = () => {
-    const success = useRecovery();
-    if (success) {
+  const handleRecover = async () => {
+    try {
+      setLoading(true);
+      const idempotencyKey = uuidv4();
+      const res = await api.recoverStreak(idempotencyKey);
       setRecovered(true);
-      const state = getStreakState();
-      setStreak(state.currentStreak);
+      setStreak(res.current_streak);
+    } catch (e: any) {
+      alert(e.message || 'Failed to recover streak');
+    } finally {
+      setLoading(false);
     }
   };
 

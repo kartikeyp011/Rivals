@@ -1,44 +1,89 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import { router } from 'expo-router';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 
 const AVATARS = ['😊', '😎', '🤩', '🧠', '💪', '🦊', '🐉', '🚀', '🎯', '🏆'];
 
 export default function ProfileSetupScreen() {
-  const params = useLocalSearchParams();
-  const [name, setName] = useState(typeof params.initialName === 'string' ? params.initialName : '');
+  const [username, setUsername] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('😊');
-  const [loading, setLoading] = useState(false);
+  const [googleAvatar, setGoogleAvatar] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true); // loading initial metadata
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadMetadata() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.user_metadata) {
+          const metaAvatar = user.user_metadata.avatar_url || user.user_metadata.picture;
+          if (metaAvatar) {
+            setGoogleAvatar(metaAvatar);
+            setSelectedAvatar(metaAvatar);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load user metadata', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMetadata();
+  }, []);
 
   const handleContinue = async () => {
-    if (!name) return;
+    if (!username) {
+      Alert.alert('Error', 'Please enter a username.');
+      return;
+    }
 
-    setLoading(true);
+    // username format validation
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      Alert.alert('Invalid Username', 'Username must be 3-20 characters long and contain only letters, numbers, and underscores.');
+      return;
+    }
+
+    setSaving(true);
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      setLoading(false);
+      setSaving(false);
       Alert.alert('Error', 'Could not get authenticated user.');
       return;
     }
 
-    const { error: updateError } = await supabase
+    // Attempt to upsert the profile. We use upsert with onConflict: 'id' to ensure 
+    // we safely create the profile without duplicating, and handle the unique username constraint.
+    const { error: upsertError } = await supabase
       .from('profiles')
-      .update({
-        display_name: name,
+      .upsert({
+        id: user.id,
+        username: username,
         avatar_url: selectedAvatar,
-      })
-      .eq('id', user.id);
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
 
-    setLoading(false);
+    setSaving(false);
 
-    if (updateError) {
-      Alert.alert('Error updating profile', updateError.message);
+    if (upsertError) {
+      if (upsertError.message.includes('unique constraint') || upsertError.code === '23505') {
+        Alert.alert('Username taken', 'That username is already taken. Please choose another.');
+      } else {
+        Alert.alert('Error saving profile', upsertError.message);
+      }
     } else {
       router.push('/auth/onboarding/starting-coins');
     }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#6c5ce7" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -48,6 +93,18 @@ export default function ProfileSetupScreen() {
       <View style={styles.avatarSection}>
         <Text style={styles.label}>Your Avatar</Text>
         <View style={styles.avatarGrid}>
+          {googleAvatar && (
+            <TouchableOpacity
+              style={[
+                styles.avatarOption,
+                selectedAvatar === googleAvatar && styles.avatarSelected,
+                { overflow: 'hidden' }
+              ]}
+              onPress={() => setSelectedAvatar(googleAvatar)}
+            >
+              <Image source={{ uri: googleAvatar }} style={{ width: 56, height: 56 }} />
+            </TouchableOpacity>
+          )}
           {AVATARS.map((emoji) => (
             <TouchableOpacity
               key={emoji}
@@ -64,23 +121,25 @@ export default function ProfileSetupScreen() {
       </View>
 
       <View style={styles.nameSection}>
-        <Text style={styles.label}>Display Name</Text>
+        <Text style={styles.label}>Rivals Username</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter your name"
+          placeholder="e.g. puzzle_master_99"
           placeholderTextColor="#555"
-          value={name}
-          onChangeText={setName}
+          value={username}
+          onChangeText={(text) => setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
-        <Text style={styles.hint}>This is how friends will see you</Text>
+        <Text style={styles.hint}>Must be unique. Letters, numbers, underscores only.</Text>
       </View>
 
       <TouchableOpacity 
-        style={[styles.continueButton, (!name || loading) && styles.continueButtonDisabled]}
+        style={[styles.continueButton, (!username || saving) && styles.continueButtonDisabled]}
         onPress={handleContinue}
-        disabled={!name || loading}
+        disabled={!username || saving}
       >
-        {loading ? (
+        {saving ? (
           <ActivityIndicator color="#ffffff" />
         ) : (
           <Text style={styles.continueButtonText}>Continue</Text>

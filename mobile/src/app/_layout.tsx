@@ -32,6 +32,9 @@ export default function RootLayout() {
     if (!session && !inAuthGroup && !isIndex) {
       // Redirect to welcome screen if not signed in and trying to access protected route.
       router.replace('/');
+    } else if (session && isIndex) {
+      // Redirect to home if signed in and on welcome screen.
+      router.replace('/(tabs)');
     }
     // We intentionally don't redirect away from the auth group if there IS a session,
     // so new users can complete the onboarding flow without being interrupted.

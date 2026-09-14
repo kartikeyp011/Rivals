@@ -1,16 +1,26 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { getCoinState, CoinTransaction } from '@/state/coinState';
+import * as api from '@/lib/api';
 
 export default function CoinActivityScreen() {
-  const [transactions, setTransactions] = useState<CoinTransaction[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [balance, setBalance] = useState(0);
 
   useEffect(() => {
-    const state = getCoinState();
-    setBalance(state.balance);
-    setTransactions([...state.transactions].reverse()); // Show newest first
+    const loadData = async () => {
+      try {
+        const [coinsData, txData] = await Promise.all([
+          api.getCoins().catch(() => 0),
+          api.getCoinTransactions().catch(() => [])
+        ]);
+        setBalance(coinsData);
+        setTransactions(txData); // Backend returns ordered list
+      } catch (e) {
+        console.error('Failed to load coin activity', e);
+      }
+    };
+    loadData();
   }, []);
 
   const getTransactionIcon = (type: string) => {
@@ -68,13 +78,13 @@ export default function CoinActivityScreen() {
         </View>
       ) : (
         <ScrollView style={styles.transactionList} showsVerticalScrollIndicator={false}>
-          {transactions.map((tx) => (
+          {transactions.map((tx: any) => (
             <View key={tx.id} style={styles.transactionItem}>
               <View style={styles.transactionLeft}>
-                <Text style={styles.transactionIcon}>{getTransactionIcon(tx.type)}</Text>
+                <Text style={styles.transactionIcon}>{getTransactionIcon(tx.reason)}</Text>
                 <View style={styles.transactionInfo}>
-                  <Text style={styles.transactionDescription}>{tx.description}</Text>
-                  <Text style={styles.transactionDate}>{formatDate(tx.date)}</Text>
+                  <Text style={styles.transactionDescription}>{tx.reason.replace(/_/g, ' ').toUpperCase()}</Text>
+                  <Text style={styles.transactionDate}>{formatDate(tx.created_at)}</Text>
                 </View>
               </View>
               <Text style={[styles.transactionAmount, getTransactionColor(tx.amount)]}>
