@@ -34,3 +34,13 @@ docs/Plans
 
 
 docs/SUPABASE_DATABASE_FOUNDATION.md
+
+# Website
+node_modules
+.next
+out
+.env*
+.DS_Store
+*.log
+.vercel
+next-env.d.ts
