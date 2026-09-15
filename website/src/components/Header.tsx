@@ -5,6 +5,7 @@ import Link from "next/link";
 
 const NAV = [
   { href: "/#gameplay", label: "Gameplay" },
+  { href: "/guide", label: "Guide" },
   { href: "/#faq", label: "FAQ" },
 ];
 
