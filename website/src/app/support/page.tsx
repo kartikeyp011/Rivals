@@ -45,7 +45,7 @@ export default function SupportPage() {
             <div style={{ padding: 32, border: "1px solid var(--line)", borderRadius: "var(--radius-lg)", background: "#f8f8fb", gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
               <div>
                 <h3 style={{ marginBottom: 8 }}>Still need help?</h3>
-                <p style={{ fontSize: "0.95rem", margin: 0 }}>Send us an email and we'll get back to you as soon as possible.</p>
+                <p style={{ fontSize: "0.95rem", margin: 0 }}>Send us an email and we&apos;ll get back to you as soon as possible.</p>
               </div>
               <a href="mailto:kartikeyp011@gmail.com" className="btn btn--primary">
                 kartikeyp011@gmail.com
