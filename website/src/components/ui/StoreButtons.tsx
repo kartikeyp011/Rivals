@@ -1,12 +1,9 @@
 /**
- * Store buttons.
+ * Store buttons. Rivals is not yet publicly available, so both are
+ * shown as Coming Soon and are non-interactive.
  *
- * The app is not yet publicly available. Both stores are marked
- * "Coming Soon" and are non-interactive to avoid fake links.
- *
- * TODO: when the app goes live, replace `aria-disabled` with real
- * hrefs to the App Store and Samsung Galaxy Store listings, and
- * remove the "Coming Soon" badge.
+ * TODO: replace aria-disabled="true" with real hrefs to the App Store
+ * and Samsung Galaxy Store listings, and remove the badge.
  */
 
 function AppleIcon() {
@@ -34,7 +31,7 @@ export default function StoreButtons() {
           <small>iOS</small>
           <strong>App Store</strong>
         </span>
-        <span className="store-badge">Coming soon</span>
+        <span className="badge">Coming Soon</span>
       </div>
 
       <div className="store-btn" aria-disabled="true" role="link">
@@ -43,7 +40,7 @@ export default function StoreButtons() {
           <small>Android</small>
           <strong>Galaxy Store</strong>
         </span>
-        <span className="store-badge">Coming soon</span>
+        <span className="badge">Coming Soon</span>
       </div>
     </div>
   );

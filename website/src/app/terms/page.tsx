@@ -13,7 +13,7 @@ export const metadata: Metadata = {
  * TERMS OF SERVICE — PLACEHOLDER
  * =========================================================
  * Replace everything inside <section className="page-body"> below
- * with your final, reviewed Terms of Service before the app goes live.
+ * with your final, reviewed Terms of Service before launch.
  * =========================================================
  */
 

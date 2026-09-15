@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import "./globals.css";
@@ -10,7 +12,7 @@ import "./globals.css";
 const SITE_URL = "https://rivals-website.vercel.app";
 const SITE_NAME = "Rivals";
 const SITE_DESCRIPTION =
-  "Rivals is a daily competitive puzzle app: three quick rounds, one combined Arena Score, and friends to beat. Play in under five minutes, keep your streak, and wager virtual coins.";
+  "Rivals is a daily competitive puzzle app: three quick rounds, one Arena Score, and friends to beat. Play in under five minutes, keep your streak, and wager virtual coins.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -40,7 +42,7 @@ export const metadata: Metadata = {
     images: [
       {
         // TODO: replace with a real 1200x630 OG image before launch.
-        url: "/og-image-placeholder.svg",
+        url: "/og-image.svg",
         width: 1200,
         height: 630,
         alt: "Rivals — Daily Puzzles & Wagers",
@@ -51,7 +53,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Rivals — Daily Puzzles & Wagers",
     description: SITE_DESCRIPTION,
-    images: ["/og-image-placeholder.svg"],
+    images: ["/og-image.svg"],
   },
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
@@ -60,7 +62,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F6EFE3",
+  themeColor: "#FFFFFF",
   width: "device-width",
   initialScale: 1,
 };
@@ -71,7 +73,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
       <body>
         <a className="skip-link" href="#main">Skip to content</a>
         <Header />

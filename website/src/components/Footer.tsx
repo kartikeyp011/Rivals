@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export default function Footer() {
   const year = new Date().getFullYear();
 
@@ -12,8 +10,8 @@ export default function Footer() {
               <span className="brand-mark" aria-hidden="true">R</span>
               Rivals
             </div>
-            <p style={{ color: "rgba(246,239,227,0.72)", maxWidth: 320 }}>
-              A competitive daily puzzle arena — three rounds, one score,
+            <p style={{ color: "rgba(255,255,255,0.6)", maxWidth: 300, marginBottom: 0 }}>
+              A daily competitive puzzle arena. Three rounds, one score,
               under five minutes.
             </p>
           </div>
@@ -21,17 +19,17 @@ export default function Footer() {
           <div>
             <h4>Product</h4>
             <ul>
-              <li><Link href="/#features">Features</Link></li>
-              <li><Link href="/#how-it-works">How it works</Link></li>
-              <li><Link href="/#gameplay">Gameplay</Link></li>
-              <li><Link href="/#download">Download</Link></li>
+              <li><a href="/#gameplay">Gameplay</a></li>
+              <li><a href="/#how-it-works">How it works</a></li>
+              <li><a href="/#download">Download</a></li>
+              <li><a href="/#faq">FAQ</a></li>
             </ul>
           </div>
 
           <div>
             <h4>Company</h4>
             <ul>
-              <li><Link href="/support">Support</Link></li>
+              <li><a href="/support">Support</a></li>
               <li>
                 <a href="mailto:kartikeyp011@gmail.com">
                   kartikeyp011@gmail.com
@@ -43,8 +41,8 @@ export default function Footer() {
           <div>
             <h4>Legal</h4>
             <ul>
-              <li><Link href="/privacy">Privacy Policy</Link></li>
-              <li><Link href="/terms">Terms of Service</Link></li>
+              <li><a href="/privacy">Privacy Policy</a></li>
+              <li><a href="/terms">Terms of Service</a></li>
             </ul>
           </div>
         </div>

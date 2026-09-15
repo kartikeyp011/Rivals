@@ -14,8 +14,8 @@ export const metadata: Metadata = {
  * =========================================================
  * Replace everything inside <section className="page-body"> below
  * with your final, reviewed Privacy Policy before the app goes live.
- * The App Store and Galaxy Store will link directly to /privacy,
- * so this URL must remain stable.
+ * The App Store and Galaxy Store will link directly to /privacy, so
+ * this URL must remain stable.
  * =========================================================
  */
 
@@ -25,9 +25,7 @@ export default function PrivacyPage() {
       <div className="page-hero">
         <div className="container">
           <h1>Privacy Policy</h1>
-          <p className="lead">
-            How Rivals handles your information.
-          </p>
+          <p className="lead">How Rivals handles your information.</p>
         </div>
       </div>
 
