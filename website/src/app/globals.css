@@ -93,11 +93,11 @@ body {
 
 /* ---------- Typography ---------- */
 
-h1, h2, h3, h4 {
+h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   letter-spacing: -0.025em;
   line-height: 1.08;
-  margin: 0 0 16px;
+  margin: 24px 0 16px;
   color: var(--ink);
 }
 h1 { font-size: clamp(2.6rem, 6vw, 4.5rem); letter-spacing: -0.04em; font-weight: 800; }
@@ -235,7 +235,7 @@ p { margin: 0 0 16px; color: var(--ink-muted); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 60px;
+  height: 45px;
   gap: 32px;
 }
 
@@ -274,6 +274,11 @@ p { margin: 0 0 16px; color: var(--ink-muted); }
   border-radius: 50%;
   background: var(--amber);
   border: 2px solid #fff;
+}
+
+.nav-cta .btn {
+  padding: 10px 18px;
+  font-size: 0.88rem;
 }
 
 .nav-links {
