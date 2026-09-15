@@ -5,7 +5,6 @@ from uuid import UUID
 class UserSearchResponse(BaseModel):
     id: UUID
     username: str
-    display_name: Optional[str] = None
     avatar_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -272,7 +272,6 @@ Fields:
 
 ```text
 id                  UUID PK
-display_name        TEXT
 avatar_url          TEXT NULL
 timezone            TEXT
 global_opt_in       BOOLEAN

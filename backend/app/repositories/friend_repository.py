@@ -11,7 +11,7 @@ class FriendRepository:
 
     async def get_friendship(self, user_id: str, friend_id: str) -> Optional[FriendResponse]:
         query = """
-            SELECT f.*, p.username as friend_username, p.display_name as friend_display_name, p.avatar_url as friend_avatar_url
+            SELECT f.*, p.username as friend_username, p.avatar_url as friend_avatar_url
             FROM friends f
             JOIN profiles p ON f.friend_id = p.id
             WHERE f.user_id = $1 AND f.friend_id = $2
@@ -69,7 +69,7 @@ class FriendRepository:
 
     async def get_friends_by_status(self, user_id: str, status: FriendStatus) -> List[FriendResponse]:
         query = """
-            SELECT f.*, p.username as friend_username, p.display_name as friend_display_name, p.avatar_url as friend_avatar_url
+            SELECT f.*, p.username as friend_username, p.avatar_url as friend_avatar_url
             FROM friends f
             JOIN profiles p ON f.friend_id = p.id
             WHERE f.user_id = $1 AND f.status = $2
@@ -81,7 +81,7 @@ class FriendRepository:
     async def get_pending_requests_for_user(self, user_id: str) -> List[FriendResponse]:
         # Pending incoming requests: friend_id = user_id. We join on user_id to get sender's profile.
         query = """
-            SELECT f.*, p.username as friend_username, p.display_name as friend_display_name, p.avatar_url as friend_avatar_url
+            SELECT f.*, p.username as friend_username, p.avatar_url as friend_avatar_url
             FROM friends f
             JOIN profiles p ON f.user_id = p.id
             WHERE f.friend_id = $1 AND f.status = 'pending'

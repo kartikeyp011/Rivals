@@ -71,7 +71,7 @@ Client-authoritative scoring or coin logic is not permitted because modified cli
 
 ```text
 users
-  id, display_name, avatar, timezone, created_at,
+  id, avatar, timezone, created_at,
   global_leaderboard_opt_in
 
 friendships

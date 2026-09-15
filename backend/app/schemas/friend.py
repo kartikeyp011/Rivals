@@ -21,7 +21,6 @@ class FriendResponse(BaseModel):
     
     # Extra fields for the UI, populated via JOIN with profiles
     friend_username: str
-    friend_display_name: Optional[str] = None
     friend_avatar_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

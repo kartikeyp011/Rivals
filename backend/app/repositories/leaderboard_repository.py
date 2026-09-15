@@ -34,7 +34,6 @@ class LeaderboardRepository:
             SELECT 
                 l.*, 
                 p.username, 
-                p.display_name, 
                 p.avatar_url,
                 RANK() OVER (ORDER BY l.score DESC) as rank
             FROM leaderboards l
@@ -59,7 +58,6 @@ class LeaderboardRepository:
             SELECT 
                 l.*, 
                 p.username, 
-                p.display_name, 
                 p.avatar_url,
                 RANK() OVER (ORDER BY l.score DESC) as rank
             FROM leaderboards l
@@ -98,7 +96,7 @@ class LeaderboardRepository:
                 WHERE l.period = $2 AND l.period_key = $3 AND p.global_opt_in = TRUE
                 AND l.score > (SELECT score FROM UserScore)
             )
-            SELECT l.*, p.username, p.display_name, p.avatar_url, r.rank
+            SELECT l.*, p.username, p.avatar_url, r.rank
             FROM leaderboards l
             JOIN profiles p ON l.user_id = p.id
             CROSS JOIN RankInfo r

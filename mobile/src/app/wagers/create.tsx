@@ -31,7 +31,7 @@ export default function CreateWagerScreen() {
         ]);
         setFriends(friendsData.map((f: any) => ({
           id: f.friend_id,
-          name: f.friend_display_name || f.friend_username,
+          name: f.friend_username,
           avatar: f.friend_avatar_url || '👤',
         })));
         setCoins(coinBalance);

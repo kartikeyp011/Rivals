@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 export default function ProfileScreen() {
     const [coins, setCoins] = useState(0);
     const [streak, setStreak] = useState(0);
-    const [displayName, setDisplayName] = useState<string>('Player');
+    const [displayUsername, setDisplayUsername] = useState<string>('Player');
     const [avatarUrl, setAvatarUrl] = useState<string>('👤');
 
     useFocusEffect(
@@ -45,7 +45,7 @@ export default function ProfileScreen() {
 
                 if (!profileError && profile) {
                     if (profile.username) {
-                        setDisplayName('@' + profile.username);
+                        setDisplayUsername('@' + profile.username);
                     }
                     if (profile.avatar_url) {
                         setAvatarUrl(profile.avatar_url);
@@ -65,7 +65,7 @@ export default function ProfileScreen() {
             <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
             </View>
-            <Text style={styles.name}>{displayName}</Text>
+            <Text style={styles.name}>{displayUsername}</Text>
             <View style={styles.card}>
                 <TouchableOpacity onPress={() => router.push('/coins/activity' as any)}>
                     <Text style={styles.cardTitle}>Coins</Text>

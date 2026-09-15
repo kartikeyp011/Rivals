@@ -35,11 +35,11 @@ def setup_users():
         try:
             # Create user1
             await conn.execute("INSERT INTO auth.users (id, instance_id, role, aud) VALUES ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated')", user1_id)
-            await conn.execute("INSERT INTO profiles (id, username, display_name) VALUES ($1, $2, $3)", user1_id, f"user1_{user1_id[:8]}", "User One")
+            await conn.execute("INSERT INTO profiles (id, username) VALUES ($1, $2)", user1_id, f"user1_{user1_id[:8]}")
             
             # Create user2
             await conn.execute("INSERT INTO auth.users (id, instance_id, role, aud) VALUES ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated')", user2_id)
-            await conn.execute("INSERT INTO profiles (id, username, display_name) VALUES ($1, $2, $3)", user2_id, f"user2_{user2_id[:8]}", "User Two")
+            await conn.execute("INSERT INTO profiles (id, username) VALUES ($1, $2)", user2_id, f"user2_{user2_id[:8]}")
         finally:
             await conn.close()
             

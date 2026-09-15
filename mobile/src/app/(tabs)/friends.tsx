@@ -155,12 +155,12 @@ export default function FriendsScreen() {
                     <View key={friend.friend_id} style={styles.friendItem}>
                       <Text style={styles.friendAvatar}>{friend.friend_avatar_url || '👤'}</Text>
                       <View style={styles.friendInfo}>
-                        <Text style={styles.friendName}>{friend.friend_display_name || friend.friend_username}</Text>
+                        <Text style={styles.friendName}>{friend.friend_username}</Text>
                         <Text style={styles.friendStatus}>Friend</Text>
                       </View>
                       <TouchableOpacity
                         style={styles.removeButton}
-                        onPress={() => handleRemoveFriend(friend.friend_id, friend.friend_display_name || friend.friend_username)}
+                        onPress={() => handleRemoveFriend(friend.friend_id, friend.friend_username)}
                       >
                         <Text style={styles.removeButtonText}>✕</Text>
                       </TouchableOpacity>
@@ -183,7 +183,7 @@ export default function FriendsScreen() {
                     <View key={request.id} style={styles.requestItem}>
                       <Text style={styles.requestAvatar}>{request.friend_avatar_url || '👤'}</Text>
                       <View style={styles.requestInfo}>
-                        <Text style={styles.requestName}>{request.friend_display_name || request.friend_username}</Text>
+                        <Text style={styles.requestName}>{request.friend_username}</Text>
                         <Text style={styles.requestStatus}>Pending</Text>
                       </View>
                       <View style={styles.requestActions}>
@@ -229,11 +229,11 @@ export default function FriendsScreen() {
                     <View key={user.id} style={styles.addItem}>
                       <Text style={styles.addAvatar}>{user.avatar_url || '👤'}</Text>
                       <View style={styles.addInfo}>
-                        <Text style={styles.addName}>{user.display_name || user.username}</Text>
+                        <Text style={styles.addName}>{user.username}</Text>
                       </View>
                       <TouchableOpacity
                         style={styles.addButton}
-                        onPress={() => handleSendRequest(user.id, user.display_name || user.username)}
+                        onPress={() => handleSendRequest(user.id, user.username)}
                       >
                         <Text style={styles.addButtonText}>Add</Text>
                       </TouchableOpacity>

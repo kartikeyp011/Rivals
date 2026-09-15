@@ -9,9 +9,9 @@ class UserRepository:
 
     async def search_users(self, query: str, limit: int = 20) -> List[UserSearchResponse]:
         sql = """
-            SELECT id, username, display_name, avatar_url
+            SELECT id, username, avatar_url
             FROM profiles
-            WHERE username ILIKE $1 OR display_name ILIKE $1
+            WHERE username ILIKE $1
             ORDER BY username ASC
             LIMIT $2
         """

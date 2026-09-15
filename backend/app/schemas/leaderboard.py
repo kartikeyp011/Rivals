@@ -17,5 +17,4 @@ class LeaderboardEntry(BaseModel):
 
     # Display fields joined at query time
     username: Optional[str] = None
-    display_name: Optional[str] = None
     avatar_url: Optional[str] = None

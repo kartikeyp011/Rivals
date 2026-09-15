@@ -218,7 +218,7 @@ export default function ArenaScreen() {
               ) : (
                 friends.map(friend => (
                   <View key={friend.friend_id} style={styles.friendRow}>
-                    <Text style={styles.friendName}>{friend.friend_display_name || friend.friend_username}</Text>
+                    <Text style={styles.friendName}>{friend.friend_username}</Text>
                     <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(friend.friend_id)}>
                       <Text style={styles.inviteButtonText}>Invite</Text>
                     </TouchableOpacity>

@@ -1280,8 +1280,8 @@ Investigated the current implementation state of the "Continue with Google" and 
   This implements the intended security rule: authenticated users can only insert a row where the `id` exactly matches their own `auth.uid()`, preventing users from writing another user's profile.
 
 ### 3. Verification & Tests
-- **Frontend changes (`profile-setup.tsx`):** UI updated to remove Display Name and support Google avatars. `display_name` is no longer provided to the profile `upsert`.
-- **Database Schema Validation:** Verified that `display_name` in `profiles` is not marked `NOT NULL` and can safely be omitted during profile creation. The column was preserved for backward compatibility.
+- **Frontend changes (`profile-setup.tsx`):** UI updated to remove Display Name and support Google avatars. `display_name` has been completely removed.
+- **Database Schema Validation:** `display_name` in `profiles` has been fully dropped via migration to rely exclusively on `username + avatar_url`.
 - **Expected Test Flow:**
   1. New Google user -> OAuth succeeds -> Routes to Profile setup.
   2. Submitting unique username succeeds -> Row created (with Google avatar if available) -> Routes to Starting Coins.
