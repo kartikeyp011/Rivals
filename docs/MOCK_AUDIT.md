@@ -13,7 +13,7 @@ Production-critical blockers: **4**
 
 | Feature | Status | Notes |
 | :--- | :--- | :--- |
-| Authentication | **REAL** (Incomplete) | Google is real. Apple is mocked (`handleAppleMock`). |
+| Authentication | **REAL** | Google and Apple are real. |
 | Profile | **REAL** | Fully integrated with DB and RLS. |
 | Leaderboards | **REAL** | Fully integrated. Mock data was removed. |
 | Friends | **REAL** | Fully integrated. |
@@ -36,7 +36,7 @@ Production-critical blockers: **4**
 | **Streaks** | `streakState.ts`, `(tabs)/index.tsx` | Increments based on local device date string. Lost on restart. | Local JS memory | Call `GET /api/v1/streaks/me` | **P0** |
 | **Wagers** | `wagerState.ts`, `wagers/*.tsx` | Wagers created and escrowed locally. Outcome decided by `mockResolveWager` (`Math.random()`). | Local JS memory | Replace with calls to `POST /wagers` etc. | **P0** |
 | **Daily Arena Button** | `(tabs)/index.tsx` | Hardcoded text "Word Duel • Cipher Break...". Routes to `/arena` (Custom Arenas list). | Hardcoded UI | Implement actual Daily Arena flow. | **P1** |
-| **Apple Login** | `auth/index.tsx` | `handleAppleMock` simulates login flow locally. | Static function | Remove or implement real Apple OAuth. | **P2** |
+| **Apple Login** | `useAppleAuth.ts` | Real OAuth via Supabase ASWebAuthenticationSession. | Supabase Auth | Implemented via Supabase Option A. | **Resolved** |
 | **Rank Badges (Home)**| `(tabs)/index.tsx` | Displays `--` for Friends Rank and Global Rank. | Hardcoded string | Fetch rank from `getUserRank` equivalent. | **P2** |
 | **My Arenas API URL** | `arena/index.tsx` | `API_BASE_URL` hardcoded to `http://127.0.0.1:8000`. | Local static string| Use `process.env.EXPO_PUBLIC_API_URL`. | **P0** |
 

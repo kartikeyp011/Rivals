@@ -2,8 +2,10 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert,
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAppleAuth } from '../../hooks/useAppleAuth';
 
 export default function SignUpScreen() {
+  const { signIn: signInApple, loading: loadingApple } = useAppleAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -98,8 +100,16 @@ export default function SignUpScreen() {
           <Text style={styles.socialText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.socialButton}>
-          <Text style={styles.socialText}>Continue with Apple</Text>
+        <TouchableOpacity 
+          style={styles.socialButton}
+          onPress={signInApple}
+          disabled={loadingApple}
+        >
+          {loadingApple ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.socialText}>Continue with Apple</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity 

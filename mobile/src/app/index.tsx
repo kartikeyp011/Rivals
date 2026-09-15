@@ -1,8 +1,10 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { useAppleAuth } from '../hooks/useAppleAuth';
 
 export default function WelcomeScreen() {
   const { signIn: signInGoogle, loading: loadingGoogle } = useGoogleAuth();
+  const { signIn: signInApple, loading: loadingApple } = useAppleAuth();
 
   return (
     <View style={styles.container}>
@@ -39,6 +41,18 @@ export default function WelcomeScreen() {
             <ActivityIndicator color="#ffffff" />
           ) : (
             <Text style={styles.googleButtonText}>Continue with Google</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.appleButton}
+          onPress={signInApple}
+          disabled={loadingApple}
+        >
+          {loadingApple ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.appleButtonText}>Continue with Apple</Text>
           )}
         </TouchableOpacity>
 

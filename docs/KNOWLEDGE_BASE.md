@@ -1365,7 +1365,7 @@ The backend FastAPI service is highly robust, securely implementing transactions
 3. **Streaks (P0):** Tracked via local device dates in `streakState.ts`. Must be migrated to `GET /api/v1/streaks/me`.
 4. **My Arenas API URL (P0):** Another hardcoded `127.0.0.1` was found inside `mobile/src/app/arena/index.tsx`.
 5. **Daily Arena (P1):** The Home screen "Today's Arena" button deceptively routes to Custom Arenas. The backend puzzle database (300+ questions) exists and is accessible via Custom Arenas, but a true global Daily Arena does not exist.
-6. **Apple Login (P2):** Contains a mocked local simulation (`handleAppleMock`).
+6. **Apple Login (P2):** Originally contained a mocked local simulation (`handleAppleMock`), now replaced by real Supabase OAuth (ASWebAuthenticationSession).
 7. **Rank Badges (P2):** The Home screen hardcodes `--` for Global/Friends rank.
 
 ### 4. Implementation Plan
@@ -1405,3 +1405,26 @@ The recommended implementation plan is divided into 3 phases. **No code has been
   3. **Insufficient Questions:** Properly fails if fewer than 3 eligible questions exist, returning HTTP 409 without creating a partial arena state.
   4. **Economy Lifecycle:** Successfully demonstrated a full 3-round gameplay cycle culminating in server-authoritative authoritative state generation: exactly 50-coin payout, streak update, and leaderboard aggregation. 
   5. **Global Validation:** The entire backend test suite (`python -m pytest tests/`) successfully passed 26 out of 26 test cases locally without polluting production logic.
+
+---
+
+## Step N+4: Real Sign in with Apple Implementation (2026-09-15)
+
+### 1. Implementation Strategy (Option A: Supabase OAuth Relay)
+Replaced the local placeholder Apple login with a real **Supabase OAuth** architecture via `expo-web-browser` (`ASWebAuthenticationSession`). 
+- **Why:** Avoids `expo-apple-authentication` native module linking, keeps auth unified in Supabase, uses identical PKCE flows to Google auth, and requires zero backend changes.
+- **Hook:** Implemented `useAppleAuth.ts` which requests the Supabase Apple OAuth URL and opens it via `WebBrowser.openAuthSessionAsync`. 
+- **Callback:** Uses the existing, provider-agnostic `auth/callback.tsx` which handles the redirect deep-link (`rivals://auth/callback?code=...`) identically to Google.
+
+### 2. Provider Identity & Linking Rules
+1. **No Automatic Custom Linking:** We do *not* manually deduplicate users by email.
+2. **Supabase Automatic Linking:** Supabase inherently *will* automatically link an Apple login to an existing Google login *only* if the Apple email returned exactly matches an existing verified Google email.
+3. **Private Relay Mismatch:** If a user with an existing Google account signs in with Apple and selects **"Hide My Email"**, Apple returns a private relay address (`@privaterelay.appleid.com`). This *will not match*, and Supabase will create a new, separate, empty Rivals account. This is documented, expected behavior.
+4. **Display Name:** Apple's `full_name` metadata is explicitly ignored. Rivals exclusively uses `username + avatar_url`. No `display_name` field exists in the DB.
+
+### 3. Required Production External Configuration
+For Apple Sign-In to function end-to-end, the following must be manually configured:
+1. **Apple Developer Portal:** App ID (with Sign in with Apple), Services ID (`com.kartikeyp011.rivals.siwa`), Private Key, and Return URL (`https://[PROJECT].supabase.co/auth/v1/callback`).
+2. **Supabase Dashboard:** Enable Apple Provider, enter Services ID & Key, and ensure `rivals://auth/callback` is in the Redirect URL Allow-list. Confirm "Allow email-based identity linking" is enabled.
+
+*Note: Account deletion is a mandatory App Store requirement when using Apple Sign-In and must be completed in a separate task.*
