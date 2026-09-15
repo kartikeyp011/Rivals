@@ -31,7 +31,7 @@ export default function Footer() {
           <div>
             <h4>Company</h4>
             <ul>
-              <li><Link href="/#faq">Support</Link></li>
+              <li><Link href="/support">Support</Link></li>
               <li>
                 <a href="mailto:kartikeyp011@gmail.com">
                   kartikeyp011@gmail.com
