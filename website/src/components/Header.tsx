@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const NAV = [
   { href: "/#gameplay", label: "Gameplay" },
@@ -53,22 +54,22 @@ export default function Header() {
   return (
     <header className="site-header" data-scrolled={scrolled} data-hidden={hidden}>
       <nav className="nav" aria-label="Primary">
-        <a href="/" className="brand" aria-label="Rivals — home">
+        <Link href="/" className="brand" aria-label="Rivals — home">
             Rivals
-          </a>
+          </Link>
 
           <ul className="nav-links">
             {NAV.map((item) => (
               <li key={item.href}>
-                <a href={item.href}>{item.label}</a>
+                <Link href={item.href}>{item.label}</Link>
               </li>
             ))}
           </ul>
 
           <div className="nav-cta">
-            <a href="/#download" className="btn btn--primary">
+            <Link href="/#download" className="btn btn--primary">
               Get the app
-            </a>
+            </Link>
           </div>
 
           <button
@@ -88,19 +89,19 @@ export default function Header() {
           <ul>
             {NAV.map((item) => (
               <li key={item.href}>
-                <a href={item.href} onClick={() => setOpen(false)}>
+                <Link href={item.href} onClick={() => setOpen(false)}>
                   {item.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
-          <a
+          <Link
             href="/#download"
             className="btn btn--primary"
             onClick={() => setOpen(false)}
           >
             Get the app
-          </a>
+          </Link>
         </div>
       )}
     </header>

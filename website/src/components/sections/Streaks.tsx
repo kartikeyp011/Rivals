@@ -8,7 +8,7 @@ export default function Streaks() {
       <div className="container">
         <Reveal className="section-head">
           <span className="eyebrow">Streaks &amp; Rivalss+</span>
-          <h2 id="streaks-heading">Show up daily. Or don't.</h2>
+          <h2 id="streaks-heading">Show up daily. Or don&apos;t.</h2>
           <p className="lead">
             Complete the Daily Arena to keep your streak alive. Miss a day and
             it breaks — unless you spend your free recovery. One free pass for
@@ -24,7 +24,7 @@ export default function Streaks() {
               <span className="unit">days</span>
             </div>
             <p style={{ marginBottom: 0 }}>
-              Beat yesterday's Arena to make it 28. Miss today and the count
+              Beat yesterday&apos;s Arena to make it 28. Miss today and the count
               resets.
             </p>
 

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   const year = new Date().getFullYear();
 
@@ -19,17 +21,17 @@ export default function Footer() {
           <div>
             <h4>Product</h4>
             <ul>
-              <li><a href="/#gameplay">Gameplay</a></li>
-              <li><a href="/#how-it-works">How it works</a></li>
-              <li><a href="/#download">Download</a></li>
-              <li><a href="/#faq">FAQ</a></li>
+              <li><Link href="/#gameplay">Gameplay</Link></li>
+              <li><Link href="/#how-it-works">How it works</Link></li>
+              <li><Link href="/#download">Download</Link></li>
+              <li><Link href="/#faq">FAQ</Link></li>
             </ul>
           </div>
 
           <div>
             <h4>Company</h4>
             <ul>
-              <li><a href="/support">Support</a></li>
+              <li><Link href="/#faq">Support</Link></li>
               <li>
                 <a href="mailto:kartikeyp011@gmail.com">
                   kartikeyp011@gmail.com
@@ -41,8 +43,8 @@ export default function Footer() {
           <div>
             <h4>Legal</h4>
             <ul>
-              <li><a href="/privacy">Privacy Policy</a></li>
-              <li><a href="/terms">Terms of Service</a></li>
+              <li><Link href="/privacy">Privacy Policy</Link></li>
+              <li><Link href="/terms">Terms of Service</Link></li>
             </ul>
           </div>
         </div>
