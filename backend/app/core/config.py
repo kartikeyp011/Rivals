@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     IDEMPOTENCY_KEY_TTL_SECONDS: int = 86400
     
+    # Apple Sign-In
+    APPLE_TEAM_ID: str | None = None
+    APPLE_CLIENT_ID: str | None = None
+    APPLE_KEY_ID: str | None = None
+    APPLE_PRIVATE_KEY: str | None = None
+    
     @property
     def cors_origins_list(self) -> List[str]:
         if self.CORS_ALLOWED_ORIGINS == "*":

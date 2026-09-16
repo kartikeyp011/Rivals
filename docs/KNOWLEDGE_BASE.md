@@ -797,6 +797,24 @@ Only after these checks should Step 7 begin.
 - Added end-to-end multiplayer game-loop tests.
 - Verified combined tests at 8/8 passing according to Antigravity.
 
+## Step 7 (Account Deletion & Data Deletion)
+- Designed and implemented a compliant and safe account deletion feature.
+- **Architecture**: 
+  - Backend uses a Postgres transaction for wiping personal data, followed by a best-effort Apple token revocation, and finally deleting the Supabase Auth user via the Supabase Admin API.
+  - The deletion endpoint is `DELETE /api/v1/users/me`, protected by `get_current_user` to prevent unauthorized deletion.
+- **Tables Deleted (Explicitly)**: `arena_scores`, `arena_results`, `arena_attempts`, `arena_invites`, `arena_participants`, `wager_participants`, `coin_ledger`.
+- **Shared Records Detached (Nullable Owners)**: `arenas.host_user_id` and `wagers.created_by` were changed to `ON DELETE SET NULL` via a new migration. This ensures multiplayer games and wagers are not destroyed when the creator leaves.
+- **Apple Revocation Behavior**: 
+  - Verified Supabase's Apple OAuth flow does NOT guarantee `provider_refresh_token` availability.
+  - Revocation is strictly best-effort. If the token is found in `auth.identities.identity_data`, a `client_secret` is generated (using `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, etc.) and sent to Apple.
+  - If no token is found, or if Apple returns an error, the backend safely ignores it and continues deletion. The user is instructed to manually remove the app from iOS settings.
+- **Failure & Retry Behavior**:
+  - If Postgres data cleanup fails, the transaction rolls back, and nothing is deleted. Safe to retry.
+  - If Apple revocation fails, deletion proceeds normally.
+  - If Supabase Admin Auth deletion fails (e.g. network error), a 500 error is returned. The user's personal data is gone, but the auth user remains. Safe to retry, and it will just succeed in deleting the auth user on the next pass.
+- **Mobile UX**: Added an "Account Settings" section to the Profile screen containing "Sign Out" and a red "Delete Account" button with a confirmation modal and loading state. Normal session cleanup (signing out and routing away) only happens after a successful 200 OK from the backend.
+- **Tests Performed**: Created `test_account_deletion.py` covering normal deletion, unauthenticated deletion, Apple revocation success, Apple revocation failure, and Supabase auth deletion failure using mocks for external requests.
+
 ---
 
 # 22. Knowledge-Base Rule Going Forward

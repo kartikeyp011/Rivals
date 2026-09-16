@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -10,6 +10,7 @@ export default function ProfileScreen() {
     const [streak, setStreak] = useState(0);
     const [displayUsername, setDisplayUsername] = useState<string>('Player');
     const [avatarUrl, setAvatarUrl] = useState<string>('👤');
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -59,6 +60,41 @@ export default function ProfileScreen() {
         fetchProfile();
     }, []);
 
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        router.replace('/');
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            "Delete Account",
+            "Are you absolutely sure? This cannot be undone and will permanently delete all your personal data.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Yes, delete my data",
+                    style: "destructive",
+                    onPress: async () => {
+                        setIsDeleting(true);
+                        try {
+                            await api.deleteAccount();
+                            Alert.alert(
+                                "Account Deleted", 
+                                "Your account has been successfully deleted. If you used Apple Sign-In, please remove Rivals from your iOS Settings > Apple ID > Password & Security.",
+                                [{ text: "OK", onPress: () => {
+                                    supabase.auth.signOut().then(() => router.replace('/'));
+                                }}]
+                            );
+                        } catch (err: any) {
+                            Alert.alert("Error", err.message || "Failed to delete account");
+                            setIsDeleting(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>👤 Profile</Text>
@@ -88,8 +124,13 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
             </View>
             <View style={styles.card}>
-                <Text style={styles.cardTitle}>Rivals+</Text>
-                <Text style={styles.cardText}>Subscribe for premium benefits</Text>
+                <Text style={styles.cardTitle}>Account Settings</Text>
+                <TouchableOpacity style={styles.actionButton} onPress={handleSignOut}>
+                    <Text style={styles.actionButtonText}>Sign Out</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={handleDeleteAccount} disabled={isDeleting}>
+                    {isDeleting ? <ActivityIndicator color="#ff4757" /> : <Text style={styles.deleteButtonText}>Delete Account</Text>}
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -142,6 +183,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: '#ffffff',
+        marginBottom: 8,
     },
     cardText: {
         fontSize: 14,
@@ -158,5 +200,23 @@ const styles = StyleSheet.create({
         color: '#666',
         fontSize: 12,
         marginTop: 4,
+    },
+    actionButton: {
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#2a2a5a',
+    },
+    actionButtonText: {
+        color: '#ffffff',
+        fontSize: 16,
+    },
+    deleteButton: {
+        borderBottomWidth: 0,
+        paddingTop: 16,
+    },
+    deleteButtonText: {
+        color: '#ff4757',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
 });

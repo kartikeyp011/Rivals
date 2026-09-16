@@ -37,16 +37,9 @@ export function useAppleAuth() {
       );
 
       if (result.type === 'success') {
-        const resultUrl = new URL(result.url);
-        // Supabase OAuth PKCE flow returns the code in the query string or hash
-        const params = new URLSearchParams(
-          resultUrl.search || resultUrl.hash.substring(1)
-        );
-        const code = params.get('code');
-        if (code) {
-          // Hand off to the unified PKCE callback handler (same as Google)
-          router.replace(`/auth/callback?code=${encodeURIComponent(code)}`);
-        }
+        // The deep link rivals://auth/callback is natively intercepted by Expo Router.
+        // We do nothing here to prevent double-routing race conditions.
+        console.log('Apple login browser success. Awaiting deep link routing...');
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
         // User closed the browser — not an error, button becomes pressable again
         console.log('User cancelled Apple login.');

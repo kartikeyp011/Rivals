@@ -39,15 +39,9 @@ export function useGoogleAuth() {
 
       // WebBrowser result type
       if (result.type === 'success') {
-        const resultUrl = new URL(result.url);
-        // Supabase OAuth code flow returns parameters in the query string or hash.
-        const params = new URLSearchParams(resultUrl.search || resultUrl.hash.substring(1));
-        const code = params.get('code');
-        
-        if (code) {
-          // Send to our unified callback handler, URL-encoding the code.
-          router.replace(`/auth/callback?code=${encodeURIComponent(code)}`);
-        }
+        // The deep link rivals://auth/callback is natively intercepted by Expo Router.
+        // We do nothing here to prevent double-routing race conditions.
+        console.log('Google login browser success. Awaiting deep link routing...');
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
         console.log('User cancelled Google login.');
       } else {

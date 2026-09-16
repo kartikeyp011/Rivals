@@ -18,3 +18,10 @@ async def search_users(
     service: UserService = Depends(get_user_service)
 ):
     return await service.search_users(q)
+
+@router.delete("/api/v1/users/me")
+async def delete_me(
+    user_id: str = Depends(get_current_user),
+    service: UserService = Depends(get_user_service)
+):
+    return await service.delete_account(user_id)

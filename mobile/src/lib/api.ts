@@ -350,3 +350,17 @@ export async function declineWager(wagerId: string, idempotencyKey: string) {
   }
   return res.json();
 }
+
+// 16. Account API
+export async function deleteAccount() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error?.message || 'Failed to delete account');
+  }
+  return res.json();
+}
