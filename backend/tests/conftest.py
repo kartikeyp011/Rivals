@@ -16,6 +16,8 @@ def generate_test_token(user_id: str, role: str = "authenticated"):
     payload = {
         "sub": user_id,
         "role": role,
+        "aud": "authenticated",
+        "iss": f"{settings.SUPABASE_URL}/auth/v1",
         "iat": int(datetime.now(timezone.utc).timestamp()),
         "exp": int((datetime.now(timezone.utc) + timedelta(days=1)).timestamp())
     }

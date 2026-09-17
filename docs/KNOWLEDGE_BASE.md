@@ -1,8 +1,8 @@
 # Rivals — Project Knowledge Base & Implementation Changelog
 
-**Document purpose:** Persistent project knowledge base for Rivals.  
-**Coverage:** Steps 1–6 completed before Step 7.  
-**Project root:** `C:\rivals_2`  
+**Document purpose:** Persistent project knowledge base for Rivals.
+**Coverage:** Steps 1–6 completed before Step 7.
+**Project root:** `C:\rivals_2`
 **Status:** Step 6 implementation reported complete and tests passing. Ready for review/commit before Step 7.
 
 ---
@@ -799,12 +799,12 @@ Only after these checks should Step 7 begin.
 
 ## Step 7 (Account Deletion & Data Deletion)
 - Designed and implemented a compliant and safe account deletion feature.
-- **Architecture**: 
+- **Architecture**:
   - Backend uses a Postgres transaction for wiping personal data, followed by a best-effort Apple token revocation, and finally deleting the Supabase Auth user via the Supabase Admin API.
   - The deletion endpoint is `DELETE /api/v1/users/me`, protected by `get_current_user` to prevent unauthorized deletion.
 - **Tables Deleted (Explicitly)**: `arena_scores`, `arena_results`, `arena_attempts`, `arena_invites`, `arena_participants`, `wager_participants`, `coin_ledger`.
 - **Shared Records Detached (Nullable Owners)**: `arenas.host_user_id` and `wagers.created_by` were changed to `ON DELETE SET NULL` via a new migration. This ensures multiplayer games and wagers are not destroyed when the creator leaves.
-- **Apple Revocation Behavior**: 
+- **Apple Revocation Behavior**:
   - Verified Supabase's Apple OAuth flow does NOT guarantee `provider_refresh_token` availability.
   - Revocation is strictly best-effort. If the token is found in `auth.identities.identity_data`, a `client_secret` is generated (using `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, etc.) and sent to Apple.
   - If no token is found, or if Apple returns an error, the backend safely ignores it and continues deletion. The user is instructed to manually remove the app from iOS settings.
@@ -1023,7 +1023,7 @@ Implemented the Friends, Lobby, and Invites flows. This involved updating the da
 ## Step 10 — Scoring, Timers & Unlimited-attempt Logic
 
 ### 1. What Was Implemented
-Aligned the frontend and backend semantics to strictly follow unlimited attempts logic and server-authoritative timers. 
+Aligned the frontend and backend semantics to strictly follow unlimited attempts logic and server-authoritative timers.
 The backend was already functionally complete in scoring service and schema, but the frontend was overhauled to handle `points_awarded` on response, visual timer syncing without local trust, and transient retry UI. A robust regression test for idempotency and the state transitions was also added.
 
 ### 2. Files Changed/Created
@@ -1144,7 +1144,7 @@ Definitive proof from `.expo/dev/logs/start.log`:
     "Project is incompatible with this version of Expo Go\n\n
      • The installed version of Expo Go is for SDK 57.\n
      • The project you opened uses SDK 56.\n\n
-     How to fix this error: Either upgrade this project to SDK 57 
+     How to fix this error: Either upgrade this project to SDK 57
      or install an older version of Expo Go that is compatible with your project."
   ]
 }
@@ -1190,7 +1190,7 @@ After fixing the APK crash, fresh production APK launches and signup works, but 
 
 ### Root Cause
 1. **Scheme Mismatch in App:** The Expo app configuration (`mobile/app.json`) registers the deep link scheme as `"scheme": "rivals"`, but the signup implementation (`mobile/src/app/auth/sign-up.tsx`) hardcodes `emailRedirectTo: 'mobile://auth/callback'`.
-2. **Supabase Redirect Fallback:** Because `mobile://auth/callback` (or any app scheme) is likely not added to the production Supabase **Additional Redirect URLs** allowlist, Supabase rejects the requested redirect and falls back to the default **Site URL**, which is set to `http://localhost:3000`. 
+2. **Supabase Redirect Fallback:** Because `mobile://auth/callback` (or any app scheme) is likely not added to the production Supabase **Additional Redirect URLs** allowlist, Supabase rejects the requested redirect and falls back to the default **Site URL**, which is set to `http://localhost:3000`.
 3. **Combination Result:** The email link takes the user to Supabase to verify the token, Supabase falls back to `http://localhost:3000`, Chrome opens it, and the connection is refused. Even if Supabase allowed `mobile://auth/callback`, the Android OS would not route it to the app because the app only listens for `rivals://`.
 
 ### Required Code / Configuration Changes
@@ -1336,7 +1336,7 @@ Investigated the current implementation state of the "Continue with Google" and 
   - **Root Cause:** The `AsyncStorage` persistence configuration in `supabase.ts` was perfectly valid and functioning. However, `mobile/src/app/_layout.tsx` lacked the logic to navigate authenticated users *away* from the Welcome Screen (`index.tsx`) on startup. Thus, returning users appeared "logged out" simply because they were never visually redirected into the app (`/(tabs)`).
   - **Fix:** Added an explicit redirect condition `else if (session && isIndex)` in `_layout.tsx` to automatically route authenticated users to the home screen.
 - **Leaderboard Mock-Data Removal & Score Integrity:**
-  - **Root Cause:** `mobile/src/state/leaderboardState.ts` and `friendState.ts` contained hardcoded mock identities (Sarah, Alex, Mike) and fabricated a `320` score for the current user to populate the UI. 
+  - **Root Cause:** `mobile/src/state/leaderboardState.ts` and `friendState.ts` contained hardcoded mock identities (Sarah, Alex, Mike) and fabricated a `320` score for the current user to populate the UI.
   - **Coins vs Arena Score:** The 100 starting coins a user receives are an economic balance used for wagers, entirely separate from their Arena Score which measures competitive performance. A new user with no completed Arenas should have 0 score, not an arbitrary 320.
   - **Fix:** Deleted the mock state files entirely. Refactored `mobile/src/app/(tabs)/leaderboards.tsx` to directly fetch verified, server-authoritative rankings using the real `/api/v1/leaderboards/global` and `/api/v1/leaderboards/friends` endpoints. Also stubbed `getAcceptedFriends` in the deferred wagers UI to sever all dependencies on the mock data files.
 
@@ -1428,7 +1428,7 @@ The recommended implementation plan is divided into 3 phases. **No code has been
   1. **Deterministic Selection:** Confirmed stable UTC-bound 3-question sequence identically for multiple distinct users without database duplication.
   2. **Advisory-Lock Concurrency:** Validated identical exact personal arena instance resolution using `pg_advisory_xact_lock` for simultaneous concurrent requests.
   3. **Insufficient Questions:** Properly fails if fewer than 3 eligible questions exist, returning HTTP 409 without creating a partial arena state.
-  4. **Economy Lifecycle:** Successfully demonstrated a full 3-round gameplay cycle culminating in server-authoritative authoritative state generation: exactly 50-coin payout, streak update, and leaderboard aggregation. 
+  4. **Economy Lifecycle:** Successfully demonstrated a full 3-round gameplay cycle culminating in server-authoritative authoritative state generation: exactly 50-coin payout, streak update, and leaderboard aggregation.
   5. **Global Validation:** The entire backend test suite (`python -m pytest tests/`) successfully passed 26 out of 26 test cases locally without polluting production logic.
 
 ---
@@ -1436,9 +1436,9 @@ The recommended implementation plan is divided into 3 phases. **No code has been
 ## Step N+4: Real Sign in with Apple Implementation (2026-09-15)
 
 ### 1. Implementation Strategy (Option A: Supabase OAuth Relay)
-Replaced the local placeholder Apple login with a real **Supabase OAuth** architecture via `expo-web-browser` (`ASWebAuthenticationSession`). 
+Replaced the local placeholder Apple login with a real **Supabase OAuth** architecture via `expo-web-browser` (`ASWebAuthenticationSession`).
 - **Why:** Avoids `expo-apple-authentication` native module linking, keeps auth unified in Supabase, uses identical PKCE flows to Google auth, and requires zero backend changes.
-- **Hook:** Implemented `useAppleAuth.ts` which requests the Supabase Apple OAuth URL and opens it via `WebBrowser.openAuthSessionAsync`. 
+- **Hook:** Implemented `useAppleAuth.ts` which requests the Supabase Apple OAuth URL and opens it via `WebBrowser.openAuthSessionAsync`.
 - **Callback:** Uses the existing, provider-agnostic `auth/callback.tsx` which handles the redirect deep-link (`rivals://auth/callback?code=...`) identically to Google.
 
 ### 2. Provider Identity & Linking Rules
@@ -1462,6 +1462,55 @@ For Apple Sign-In to function end-to-end, the following must be manually configu
 - **Root Cause (Expo Router Route Collision):** Both `app/index.tsx` (Welcome Screen) and `app/(tabs)/index.tsx` (Home Screen) map to the same URL path (`/`). When `router.replace('/')` was called from within the `(tabs)` layout upon sign-out, React Navigation resolved the ambiguous `/` path to the closest matching route within the active navigator, which was `(tabs)/index.tsx`. This caused the user to remain on the Home screen visually. However, `useSegments()` returned `[]` because the URL was just `/`, tricking the auth guard into thinking it had successfully reached the Welcome screen.
 
 ### 2. The Fix
-- **Smallest Clean Change:** Renamed the colliding `mobile/src/app/index.tsx` to `mobile/src/app/welcome.tsx`. 
+- **Smallest Clean Change:** Renamed the colliding `mobile/src/app/index.tsx` to `mobile/src/app/welcome.tsx`.
 - Updated `mobile/src/app/_layout.tsx` to use `welcome` in its <Stack.Screen> definition and changed the auth guard logic to redirect unauthenticated users explicitly to `/welcome` instead of the ambiguous `/`.
 - **Result:** The route collision is permanently resolved. Sign out deterministically routes to the Welcome screen, completely unmounting the authenticated `(tabs)` layout.
+
+---
+
+## Step N+6: Account Deletion Pre-Flight Verification (2026-09-17)
+
+### 1. Backend Endpoint Verification
+- **Endpoint:** `DELETE /api/v1/users/me` exists in `backend/app/routers/users.py`.
+- **Authentication:** Verified it securely uses `Depends(get_current_user)`, extracting the `user_id` directly from the JWT. It does NOT accept arbitrary client-provided user IDs.
+- **Production Status:** `curl -I https://rivals-backend-magl.onrender.com/api/v1/users/me -X DELETE -H "Authorization: Bearer mock"` correctly returns `401 Unauthorized`, confirming the endpoint is deployed and active on Render.
+
+### 2. Deletion Flow & Architecture
+- **Personal Data:** Safely wipes `arena_scores`, `arena_results`, `arena_attempts`, `arena_invites`, `arena_participants`, `wager_participants`, and `coin_ledger` within a transaction.
+- **Cascaded Data:** `profiles`, `streaks`, `friends`, and `leaderboards` are designed to cascade when the root `auth.users` record is deleted.
+- **Shared Ownership:** Verified the migration `20260916225000_nullable_owners.sql` exists, changing `arenas.host_user_id` and `wagers.created_by` to nullable with `ON DELETE SET NULL`.
+- **Apple Revocation:** Securely attempts best-effort token revocation to Apple's API. Safely handles missing refresh tokens or revocation failures by proceeding with the deletion.
+- **Supabase Deletion:** Safely uses the Supabase Admin API. Gracefully treats `404 Not Found` as a success (idempotent), allowing the client to safely retry the flow if it was partially interrupted previously.
+
+### 3. Test & Validation Results
+- **Backend Tests:** Ran `python -m pytest tests/test_account_deletion.py`. Passed 5/5, validating unauthorized rejections, normal deletion, Apple revocation success, Apple revocation failure handling, and Supabase auth failure handling.
+- **TypeScript:** Ran `npx tsc --noEmit` in the mobile app. Passed with 0 errors.
+
+### 4. Remaining Production Tests (To be executed by User)
+Before public availability, a safe production test should be performed:
+1. Create a burner/test account in production via Google or Apple.
+2. Create a Custom Arena and a Wager to ensure ownership records exist.
+3. Tap 'Delete Account' in the mobile UI.
+4. Verify the test user is removed from Supabase Auth.
+5. Verify the Custom Arena and Wager still exist but their creator IDs are now `NULL`.
+
+---
+
+## Step N+7: Fix Production JWT Auth 401 (2026-09-17)
+
+### 1. The Bug
+- **Issue:** Tapping 'Delete Account' in production returned `HTTP 401: Invalid or expired token`, despite Apple Login succeeding and the user profile loading correctly.
+- **Root Cause (Silent Failure \u0026 Secret Mismatch):** The FastAPI backend on Render was configured with an incorrect or stale `SUPABASE_JWT_SECRET`. This caused `verify_jwt` to fail for ALL backend API calls. However, the user only noticed it on `deleteAccount` because:
+  1. The Profile screen loads the username/avatar directly from Supabase (which succeeds since Supabase knows its own secret).
+  2. The Profile screen silently catches errors for backend endpoints like `getCoins()` and defaults to `0`.
+  3. `deleteAccount()` explicitly throws the error, surfacing the 401 to the UI.
+
+### 2. The Fix
+- **Action Required:** The user must update the `SUPABASE_JWT_SECRET` environment variable in the Render dashboard to match the JWT Secret of the production Supabase project (`jckctlrsgzpepkpqxuxd`).
+
+
+### 3. JWT Verification Refactor (Asymmetric Keys)
+- **Actual Token Algorithm Found:** ES256 (ECC P-256) with matching kid in production JWKS endpoint.
+- **Root Cause Confirmed:** python-jose was hardcoded to accept only HS256 tokens and failed immediately on encountering an ES256 Apple access token.
+- **Verification Architecture:** Migrated backend from python-jose to PyJWT with PyJWKClient. Extracts unverified header, dynamically loads the public key from the Supabase JWKS endpoint for ES256, and falls back to SUPABASE_JWT_SECRET only for legacy HS256 tokens. Strict validation on audience ('authenticated') and issuer was also enforced.
+- **Tests Performed:** Mocked PyJWKClient tests cover valid/invalid ES256 tokens, expired tokens, incorrect issuer/audience, valid HS256 tokens, and unsupported algorithms (e.g. HS512).
