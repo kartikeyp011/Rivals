@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -61,8 +61,11 @@ export default function ProfileScreen() {
     }, []);
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        router.replace('/');
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            Alert.alert("Sign Out Error", error.message || "Failed to sign out.");
+        }
+        // The auth state listener in _layout.tsx will automatically redirect to '/' on success
     };
 
     const handleDeleteAccount = () => {
@@ -82,7 +85,7 @@ export default function ProfileScreen() {
                                 "Account Deleted", 
                                 "Your account has been successfully deleted. If you used Apple Sign-In, please remove Rivals from your iOS Settings > Apple ID > Password & Security.",
                                 [{ text: "OK", onPress: () => {
-                                    supabase.auth.signOut().then(() => router.replace('/'));
+                                    supabase.auth.signOut();
                                 }}]
                             );
                         } catch (err: any) {
@@ -96,7 +99,7 @@ export default function ProfileScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>👤 Profile</Text>
             <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
@@ -132,16 +135,17 @@ export default function ProfileScreen() {
                     {isDeleting ? <ActivityIndicator color="#ff4757" /> : <Text style={styles.deleteButtonText}>Delete Account</Text>}
                 </TouchableOpacity>
             </View>
-        </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        flexGrow: 1,
         backgroundColor: '#0a0a1a',
         padding: 20,
         paddingTop: 60,
+        paddingBottom: 100, // Extra padding to avoid tab bar overlap
         alignItems: 'center',
     },
     title: {

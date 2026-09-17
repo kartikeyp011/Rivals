@@ -814,6 +814,13 @@ Only after these checks should Step 7 begin.
   - If Supabase Admin Auth deletion fails (e.g. network error), a 500 error is returned. The user's personal data is gone, but the auth user remains. Safe to retry, and it will just succeed in deleting the auth user on the next pass.
 - **Mobile UX**: Added an "Account Settings" section to the Profile screen containing "Sign Out" and a red "Delete Account" button with a confirmation modal and loading state. Normal session cleanup (signing out and routing away) only happens after a successful 200 OK from the backend.
 - **Tests Performed**: Created `test_account_deletion.py` covering normal deletion, unauthenticated deletion, Apple revocation success, Apple revocation failure, and Supabase auth deletion failure using mocks for external requests.
+- **Production Debugging (2026-09-17)**:
+  - Addressed three UI/Production issues discovered during testing, plus two subsequent flow issues.
+  - **Issue 1**: UI overlap. The "Sign Out" and "Delete Account" buttons were unclickable because they fell outside the `View` bounding box and were covered by the tab bar on smaller screens. Fixed by upgrading `View` to `ScrollView` in `profile.tsx` with proper bottom padding.
+  - **Issue 2**: Double-slash 404 URL bugs. The `API_BASE_URL` from Expo env variables could contain a trailing slash, generating `https://api.domain.com//api/v1/users/me` causing a FastAPI 404 (Not Found). Fixed by trimming the trailing slash in `api.ts`.
+  - **Issue 3**: Generic error masking. The FastAPI `global_exception_handler` was blindly returning `500 Internal Server Error` with "An unexpected error occurred" for `HTTPException` (like 403 Forbidden). Fixed the backend to preserve `HTTPException` details, and updated the frontend `api.ts` to surface raw errors.
+  - **Issue 4**: Real 404 on `DELETE /api/v1/users/me`. Testing on the physical device returned 404 because the backend commit containing the deletion endpoint had only been committed locally. Render only auto-deploys when code is pushed to `origin/main`. **Resolution**: The commit must be pushed to GitHub to trigger the Render deployment.
+  - **Issue 5**: Sign Out Race Condition. Tapping "Sign Out" caused the app to bounce into the authenticated Home screen and log `ERROR [Error: Failed to fetch friends leaderboard]`. This happened because `handleSignOut` manually invoked `router.replace('/')` which conflicted with the `_layout.tsx` `onAuthStateChange` listener. The manual routing caused a state mismatch where `isIndex` became true before `session` became null, tricking `_layout.tsx` into routing to `/(tabs)`. **Resolution**: Removed manual routing from `handleSignOut` and `handleDeleteAccount`, deferring entirely to the `_layout.tsx` auth state observer, and added robust error handling to `signOut()`.
 
 ---
 
@@ -1446,3 +1453,15 @@ For Apple Sign-In to function end-to-end, the following must be manually configu
 2. **Supabase Dashboard:** Enable Apple Provider, enter Services ID & Key, and ensure `rivals://auth/callback` is in the Redirect URL Allow-list. Confirm "Allow email-based identity linking" is enabled.
 
 *Note: Account deletion is a mandatory App Store requirement when using Apple Sign-In and must be completed in a separate task.*
+---
+
+## Step N+5: Fix Root Route Authenticated UI Collision (2026-09-17)
+
+### 1. The Bug
+- **Issue:** Tapping 'Sign Out' visually rendered the authenticated Home screen (with 'Play Now' Arena buttons) instead of the Welcome/Login screen, even though the session was successfully destroyed and the logs indicated navigation to /. Tapping 'Play Arena' from this broken logged-out state correctly triggered an auth guard and forced a login redirect.
+- **Root Cause (Expo Router Route Collision):** Both `app/index.tsx` (Welcome Screen) and `app/(tabs)/index.tsx` (Home Screen) map to the same URL path (`/`). When `router.replace('/')` was called from within the `(tabs)` layout upon sign-out, React Navigation resolved the ambiguous `/` path to the closest matching route within the active navigator, which was `(tabs)/index.tsx`. This caused the user to remain on the Home screen visually. However, `useSegments()` returned `[]` because the URL was just `/`, tricking the auth guard into thinking it had successfully reached the Welcome screen.
+
+### 2. The Fix
+- **Smallest Clean Change:** Renamed the colliding `mobile/src/app/index.tsx` to `mobile/src/app/welcome.tsx`. 
+- Updated `mobile/src/app/_layout.tsx` to use `welcome` in its <Stack.Screen> definition and changed the auth guard logic to redirect unauthenticated users explicitly to `/welcome` instead of the ambiguous `/`.
+- **Result:** The route collision is permanently resolved. Sign out deterministically routes to the Welcome screen, completely unmounting the authenticated `(tabs)` layout.

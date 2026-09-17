@@ -6,7 +6,7 @@ from app.services.user_service import UserService
 
 def test_unauthorized_deletion(client):
     response = client.delete("/api/v1/users/me")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 def test_normal_deletion(client, test_user_1, test_user_1_headers):
     with patch("app.services.user_service.httpx.AsyncClient") as mock_client:
@@ -70,7 +70,7 @@ def test_apple_revocation_failure_proceeds(client, test_user_1, test_user_1_head
 def test_supabase_auth_failure_returns_500(client, test_user_2, test_user_2_headers):
     with patch("app.services.user_service.httpx.AsyncClient") as mock_client:
         mock_instance = AsyncMock()
-        mock_instance.delete.return_value.status_code = 404 # Admin API fails
+        mock_instance.delete.return_value.status_code = 502 # Admin API fails
         mock_client.return_value.__aenter__.return_value = mock_instance
 
         response = client.delete("/api/v1/users/me", headers=test_user_2_headers)

@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import * as api from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,6 +19,9 @@ export default function FriendsScreen() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
       if (activeTab === 'friends') {
         const data = await api.getFriends();
         setFriends(data);
@@ -31,9 +36,11 @@ export default function FriendsScreen() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [activeTab])
+  );
 
   const handleSearch = async (text: string) => {
     setSearchQuery(text);

@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import * as api from '@/lib/api';
 
@@ -26,6 +27,12 @@ export default function LeaderboardsScreen() {
   const loadData = async () => {
     setRefreshing(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log(`[leaderboards.tsx] No session, skipping fetch.`);
+        return;
+      }
+      
       const { data: { user } } = await supabase.auth.getUser();
       const currentUserId = user?.id;
 
@@ -62,9 +69,11 @@ export default function LeaderboardsScreen() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [activeTab, timeType]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [activeTab, timeType])
+  );
 
   const onRefresh = () => {
     loadData();

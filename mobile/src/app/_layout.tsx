@@ -27,17 +27,13 @@ export default function RootLayout() {
 
     const segmentsArray = segments as string[];
     const inAuthGroup = segmentsArray[0] === 'auth';
-    const isIndex = segmentsArray.length === 0 || (segmentsArray.length === 1 && segmentsArray[0] === 'index');
+    const isWelcome = segmentsArray.length === 1 && segmentsArray[0] === 'welcome';
 
-    if (!session && !inAuthGroup && !isIndex) {
-      // Redirect to welcome screen if not signed in and trying to access protected route.
-      router.replace('/');
-    } else if (session && isIndex) {
-      // Redirect to home if signed in and on welcome screen.
+    if (!session && !inAuthGroup && !isWelcome) {
+      router.replace('/welcome' as any);
+    } else if (session && isWelcome) {
       router.replace('/(tabs)');
     }
-    // We intentionally don't redirect away from the auth group if there IS a session,
-    // so new users can complete the onboarding flow without being interrupted.
   }, [session, initialized, segments]);
 
   if (!initialized) return null;
@@ -49,7 +45,7 @@ export default function RootLayout() {
         animation: 'slide_from_right',
       }}
     >
-      <Stack.Screen name="index" />
+      <Stack.Screen name="welcome" />
       <Stack.Screen name="auth" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="arena" />

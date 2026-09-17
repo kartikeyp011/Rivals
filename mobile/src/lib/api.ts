@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+let API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
+if (API_BASE_URL.endsWith('/')) {
+  API_BASE_URL = API_BASE_URL.slice(0, -1);
+}
 if (!API_BASE_URL) {
   console.warn("EXPO_PUBLIC_API_URL is not set!");
 }
@@ -359,8 +362,16 @@ export async function deleteAccount() {
     headers,
   });
   if (!res.ok) {
-    const errorData = await res.json();
-    throw new Error(errorData.error?.message || 'Failed to delete account');
+    let errorMsg = 'Failed to delete account';
+    try {
+      const errorData = await res.json();
+      console.error(`[deleteAccount] Server returned HTTP ${res.status}:`, JSON.stringify(errorData));
+      errorMsg = errorData.error?.message || errorData.detail || `Server error ${res.status}`;
+    } catch (e) {
+      console.error(`[deleteAccount] Failed to parse error response as JSON. Status: ${res.status}`);
+      errorMsg = `Server error ${res.status}`;
+    }
+    throw new Error(errorMsg);
   }
   return res.json();
 }
