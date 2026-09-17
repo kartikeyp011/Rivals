@@ -1514,3 +1514,15 @@ Before public availability, a safe production test should be performed:
 - **Root Cause Confirmed:** python-jose was hardcoded to accept only HS256 tokens and failed immediately on encountering an ES256 Apple access token.
 - **Verification Architecture:** Migrated backend from python-jose to PyJWT with PyJWKClient. Extracts unverified header, dynamically loads the public key from the Supabase JWKS endpoint for ES256, and falls back to SUPABASE_JWT_SECRET only for legacy HS256 tokens. Strict validation on audience ('authenticated') and issuer was also enforced.
 - **Tests Performed:** Mocked PyJWKClient tests cover valid/invalid ES256 tokens, expired tokens, incorrect issuer/audience, valid HS256 tokens, and unsupported algorithms (e.g. HS512).
+
+## Step N+8: Identity Linking & Account Deletion UX (2026-09-18)
+
+### 1. Identity Linking Behavior
+- Google and Apple sign-in can be linked to the same underlying Rivals account when automatic identity linking applies (e.g., using the same email address).
+- Deleting that Rivals account removes the linked Rivals authentication identities/access.
+- Google/Apple consumer accounts themselves are NOT deleted.
+
+### 2. UX Improvements
+- The Account Deletion UI now dynamically warns users about this behavior.
+- If both Google and Apple are linked, the warning explicitly states that both sign-in methods will be removed from Rivals.
+- The Account Settings screen now clearly displays the linked sign-in methods (Google, Apple, or Email).

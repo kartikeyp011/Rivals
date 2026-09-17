@@ -11,6 +11,7 @@ export default function ProfileScreen() {
     const [displayUsername, setDisplayUsername] = useState<string>('Player');
     const [avatarUrl, setAvatarUrl] = useState<string>('👤');
     const [isDeleting, setIsDeleting] = useState(false);
+    const [linkedProviders, setLinkedProviders] = useState({ google: false, apple: false });
 
     useFocusEffect(
         useCallback(() => {
@@ -36,6 +37,13 @@ export default function ProfileScreen() {
                 const { data: { user }, error: userError } = await supabase.auth.getUser();
                 if (userError || !user) {
                     return;
+                }
+
+                if (user.identities) {
+                    setLinkedProviders({
+                        google: user.identities.some(id => id.provider === 'google'),
+                        apple: user.identities.some(id => id.provider === 'apple'),
+                    });
                 }
 
                 const { data: profile, error: profileError } = await supabase
@@ -69,13 +77,25 @@ export default function ProfileScreen() {
     };
 
     const handleDeleteAccount = () => {
+        const hasBoth = linkedProviders.google && linkedProviders.apple;
+        
+        let message = "This permanently deletes your Rivals account and associated data.\n\n";
+        
+        if (hasBoth) {
+            message += "You currently have Google and Apple sign-in linked to this Rivals account. Deleting your account will remove both sign-in methods from Rivals.\n\n";
+        } else {
+            message += "If you have linked both Google and Apple sign-in to this Rivals account, deleting your Rivals account will also remove access through both sign-in methods.\n\n";
+        }
+        
+        message += "This action cannot be undone.";
+
         Alert.alert(
-            "Delete Account",
-            "Are you absolutely sure? This cannot be undone and will permanently delete all your personal data.",
+            "Deleting your Rivals account",
+            message,
             [
                 { text: "Cancel", style: "cancel" },
                 {
-                    text: "Yes, delete my data",
+                    text: "Delete My Account",
                     style: "destructive",
                     onPress: async () => {
                         setIsDeleting(true);
@@ -83,7 +103,7 @@ export default function ProfileScreen() {
                             await api.deleteAccount();
                             Alert.alert(
                                 "Account Deleted", 
-                                "Your account has been successfully deleted. If you used Apple Sign-In, please remove Rivals from your iOS Settings > Apple ID > Password & Security.",
+                                "Your account has been successfully deleted.",
                                 [{ text: "OK", onPress: () => {
                                     supabase.auth.signOut();
                                 }}]
@@ -128,6 +148,14 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Account Settings</Text>
+                
+                <View style={styles.providersContainer}>
+                    <Text style={styles.providersTitle}>Sign-in methods</Text>
+                    {linkedProviders.google && <Text style={styles.providerText}>✓ Google</Text>}
+                    {linkedProviders.apple && <Text style={styles.providerText}>✓ Apple</Text>}
+                    {!linkedProviders.google && !linkedProviders.apple && <Text style={styles.providerText}>✓ Email</Text>}
+                </View>
+
                 <TouchableOpacity style={styles.actionButton} onPress={handleSignOut}>
                     <Text style={styles.actionButtonText}>Sign Out</Text>
                 </TouchableOpacity>
@@ -213,6 +241,22 @@ const styles = StyleSheet.create({
     actionButtonText: {
         color: '#ffffff',
         fontSize: 16,
+    },
+    providersContainer: {
+        marginBottom: 16,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#2a2a5a',
+    },
+    providersTitle: {
+        color: '#aaaacc',
+        fontSize: 14,
+        marginBottom: 8,
+    },
+    providerText: {
+        color: '#ffffff',
+        fontSize: 16,
+        marginBottom: 4,
     },
     deleteButton: {
         borderBottomWidth: 0,
