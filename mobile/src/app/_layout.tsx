@@ -5,8 +5,8 @@ import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
 
-// TODO: Replace with actual RevenueCat public API key for iOS when available
-const RC_APPLE_API_KEY = "appl_placeholder_key";
+// RevenueCat public API key for iOS from environment variables
+const RC_APPLE_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY || "";
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);

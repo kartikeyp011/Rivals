@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
+import Purchases from 'react-native-purchases';
+import RevenueCatUI from 'react-native-purchases-ui';
 import * as api from '@/lib/api';
 import { supabase } from '../../lib/supabase';
 
@@ -13,6 +15,10 @@ export default function ProfileScreen() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [linkedProviders, setLinkedProviders] = useState({ google: false, apple: false });
 
+    // RevenueCat State
+    const [isSubscribed, setIsSubscribed] = useState(false);
+    const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
+
     useFocusEffect(
         useCallback(() => {
             const loadData = async () => {
@@ -23,8 +29,19 @@ export default function ProfileScreen() {
                     ]);
                     setCoins(coinBalance);
                     setStreak(streakData.current_streak || 0);
+
+                    if (Platform.OS === 'ios') {
+                        try {
+                            const customerInfo = await Purchases.getCustomerInfo();
+                            setIsSubscribed(typeof customerInfo.entitlements.active['rivals_plus'] !== 'undefined');
+                        } catch (e) {
+                            console.error("Failed to load subscription info", e);
+                        }
+                    }
                 } catch (e) {
                     console.error("Failed to load dashboard data", e);
+                } finally {
+                    setIsLoadingSubscription(false);
                 }
             };
             loadData();
@@ -68,6 +85,56 @@ export default function ProfileScreen() {
         fetchProfile();
     }, []);
 
+    const handleSubscription = async () => {
+        if (Platform.OS !== 'ios') {
+            Alert.alert("Not Supported", "Rivalss+ is currently only available on iOS.");
+            return;
+        }
+
+        if (isSubscribed) {
+            Alert.alert("Rivalss+ Active", "You are already a Rivalss+ subscriber! Enjoy your weekly bonus coins.");
+            return;
+        }
+
+        try {
+            const paywallResult = await RevenueCatUI.presentPaywallIfNeeded({
+                requiredEntitlementIdentifier: 'rivals_plus'
+            });
+
+            // Refresh status after paywall closes
+            const customerInfo = await Purchases.getCustomerInfo();
+            if (typeof customerInfo.entitlements.active['rivals_plus'] !== 'undefined') {
+                setIsSubscribed(true);
+            }
+        } catch (e: any) {
+            console.error("Paywall error", e);
+            Alert.alert("Error", e.message || "Failed to open subscription.");
+        }
+    };
+
+    const handleRestorePurchases = async () => {
+        if (Platform.OS !== 'ios') {
+            Alert.alert("Not Supported", "Subscriptions are currently only available on iOS.");
+            return;
+        }
+
+        try {
+            setIsLoadingSubscription(true);
+            const customerInfo = await Purchases.restorePurchases();
+            if (typeof customerInfo.entitlements.active['rivals_plus'] !== 'undefined') {
+                setIsSubscribed(true);
+                Alert.alert("Success", "Your Rivalss+ subscription has been restored.");
+            } else {
+                Alert.alert("No Purchases Found", "We couldn't find any active subscriptions for your account.");
+            }
+        } catch (e: any) {
+            console.error("Restore error", e);
+            Alert.alert("Error", e.message || "Failed to restore purchases.");
+        } finally {
+            setIsLoadingSubscription(false);
+        }
+    };
+
     const handleSignOut = async () => {
         const { error } = await supabase.auth.signOut();
         if (error) {
@@ -78,15 +145,15 @@ export default function ProfileScreen() {
 
     const handleDeleteAccount = () => {
         const hasBoth = linkedProviders.google && linkedProviders.apple;
-        
+
         let message = "This permanently deletes your Rivals account and associated data.\n\n";
-        
+
         if (hasBoth) {
             message += "You currently have Google and Apple sign-in linked to this Rivals account. Deleting your account will remove both sign-in methods from Rivals.\n\n";
         } else {
             message += "If you have linked both Google and Apple sign-in to this Rivals account, deleting your Rivals account will also remove access through both sign-in methods.\n\n";
         }
-        
+
         message += "This action cannot be undone.";
 
         Alert.alert(
@@ -102,7 +169,7 @@ export default function ProfileScreen() {
                         try {
                             await api.deleteAccount();
                             Alert.alert(
-                                "Account Deleted", 
+                                "Account Deleted",
                                 "Your account has been successfully deleted.",
                                 [{ text: "OK", onPress: () => {
                                     supabase.auth.signOut();
@@ -125,6 +192,27 @@ export default function ProfileScreen() {
                 <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
             </View>
             <Text style={styles.name}>{displayUsername}</Text>
+
+            <View style={[styles.card, isSubscribed ? styles.subscribedCard : styles.premiumCard]}>
+                <TouchableOpacity onPress={handleSubscription}>
+                    <Text style={[styles.cardTitle, isSubscribed && { color: '#ffd700' }]}>⭐ Rivalss+</Text>
+                    {isLoadingSubscription ? (
+                        <ActivityIndicator color="#fdcb6e" style={{ marginTop: 8 }} />
+                    ) : (
+                        <>
+                            <Text style={styles.cardText}>
+                                {isSubscribed
+                                    ? "Active Subscription"
+                                    : "Unlock weekly bonus coins & more"}
+                            </Text>
+                            <Text style={styles.cardSubtext}>
+                                {isSubscribed ? "You're all set! →" : "Tap to view plans →"}
+                            </Text>
+                        </>
+                    )}
+                </TouchableOpacity>
+            </View>
+
             <View style={styles.card}>
                 <TouchableOpacity onPress={() => router.push('/coins/activity' as any)}>
                     <Text style={styles.cardTitle}>Coins</Text>
@@ -148,13 +236,19 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Account Settings</Text>
-                
+
                 <View style={styles.providersContainer}>
                     <Text style={styles.providersTitle}>Sign-in methods</Text>
                     {linkedProviders.google && <Text style={styles.providerText}>✓ Google</Text>}
                     {linkedProviders.apple && <Text style={styles.providerText}>✓ Apple</Text>}
                     {!linkedProviders.google && !linkedProviders.apple && <Text style={styles.providerText}>✓ Email</Text>}
                 </View>
+
+                {Platform.OS === 'ios' && (
+                    <TouchableOpacity style={styles.actionButton} onPress={handleRestorePurchases}>
+                        <Text style={styles.actionButtonText}>Restore Purchases</Text>
+                    </TouchableOpacity>
+                )}
 
                 <TouchableOpacity style={styles.actionButton} onPress={handleSignOut}>
                     <Text style={styles.actionButtonText}>Sign Out</Text>
@@ -210,6 +304,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#2a2a5a',
         marginBottom: 12,
+    },
+    premiumCard: {
+        borderColor: '#fdcb6e',
+        backgroundColor: '#1a1a2a',
+    },
+    subscribedCard: {
+        borderColor: '#00b894',
+        backgroundColor: '#10201a',
     },
     cardTitle: {
         fontSize: 16,

@@ -1546,3 +1546,30 @@ Before public availability, a safe production test should be performed:
 - Weekly bonus coin logic and backend subscription synchronizations (webhooks, APIs) are not built.
 - Account deletion integration: The Supabase user deletion flow (`DELETE /api/v1/users/me`) is intact. The backend does not yet delete the RevenueCat customer via the REST API; this is reserved for a future backend implementation phase.
 - App Store Connect and Google Play products are not configured.
+
+## Step N+10: RevenueCat Paywall Implementation (2026-09-18)
+
+### 1. Configuration & Security
+- Replaced hardcoded `appl_placeholder_key` in `mobile/src/app/_layout.tsx` with `process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY`.
+- This public Apple SDK Key is sourced securely from the `.env.local` configuration layer to avoid hardcoding API tokens into the repository.
+
+### 2. Paywall Integration (Rivalss+)
+- **Entry Point:** Added a dedicated `Rivalss+` card dynamically inside the main `ProfileScreen` (`mobile/src/app/(tabs)/profile.tsx`) just above the Coins card.
+- **SDK Usage:** Utilized `react-native-purchases-ui` via `RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: "rivals_plus" })` to programmatically render the default RevenueCat offering directly inside the app, sourcing Apple's localized pricing natively rather than hardcoding any values.
+
+### 3. Entitlement Checks & Subscribed State
+- During initialization in `profile.tsx`, `Purchases.getCustomerInfo()` correctly retrieves the active entitlement for the user mapped to `rivals_plus`.
+- The UI deterministically renders either an **Active Subscription** state or a **call-to-action** based entirely on `customerInfo.entitlements.active["rivals_plus"]`.
+- If the user is already subscribed, tapping the card presents a localized Alert indicating they are active, completely skipping the paywall UI to prevent double-billing flow.
+
+### 4. Restore Purchases
+- Implemented a visible `Restore Purchases` button inside the **Account Settings** section exclusively for iOS devices (`Platform.OS === "ios"`).
+- Tapping executes `Purchases.restorePurchases()`, fetching any historically attached active Apple subscriptions for `rivals_plus` and instantly hydrating the local user state if successful.
+
+### 5. Native Build Requirement
+- **Important Limitation:** Expo Go is completely incompatible with the native RevenueCat billing modules. To perform end-to-end sandbox purchase verification against App Store Connect, a full `npx expo run:ios` (or EAS build) must be deployed to a physical or simulated iOS device.
+
+### 6. What Is NOT Implemented Yet
+- Weekly bonus coin distribution logic.
+- Backend subscription table, authorization guards, and RevenueCat webhook syncing.
+- App Store Connect products have not been modified inside this phase.
