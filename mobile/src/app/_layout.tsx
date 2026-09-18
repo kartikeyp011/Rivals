@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+import Purchases from 'react-native-purchases';
+
+// TODO: Replace with actual RevenueCat public API key for iOS when available
+const RC_APPLE_API_KEY = "appl_placeholder_key";
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -10,13 +15,29 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
+    if (Platform.OS === 'ios') {
+      Purchases.configure({ apiKey: RC_APPLE_API_KEY });
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setInitialized(true);
+      if (session?.user?.id && Platform.OS === 'ios') {
+        Purchases.logIn(session.user.id).catch(console.error);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (_event === 'SIGNED_IN' && session?.user?.id) {
+        if (Platform.OS === 'ios') {
+          Purchases.logIn(session.user.id).catch(console.error);
+        }
+      } else if (_event === 'SIGNED_OUT') {
+        if (Platform.OS === 'ios') {
+          Purchases.logOut().catch(console.error);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();

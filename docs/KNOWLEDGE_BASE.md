@@ -1526,3 +1526,23 @@ Before public availability, a safe production test should be performed:
 - The Account Deletion UI now dynamically warns users about this behavior.
 - If both Google and Apple are linked, the warning explicitly states that both sign-in methods will be removed from Rivals.
 - The Account Settings screen now clearly displays the linked sign-in methods (Google, Apple, or Email).
+
+## Step N+9: RevenueCat Foundation (2026-09-18)
+
+### 1. Integration Scope & SDK
+- Installed `react-native-purchases` and `react-native-purchases-ui` via npm.
+- Validated versions are compatible with Expo SDK 56 via `npx expo install`.
+- Configured strictly for iOS (`Platform.OS === 'ios'`) using a placeholder public API key.
+- Testing this integration requires a development build (`npx expo run:ios`) or EAS custom build because the SDK contains native code.
+
+### 2. Identity & Initialization Architecture
+- **Initialization:** `Purchases.configure()` is called exactly once in `mobile/src/app/_layout.tsx`.
+- **Identity Mapping:** The RevenueCat App User ID is explicitly set to the authenticated Supabase `session.user.id` via `Purchases.logIn()`. This is triggered dynamically inside `supabase.auth.onAuthStateChange` when a `SIGNED_IN` event occurs or the initial session is loaded.
+- **Logout Handling:** Existing Supabase sign-out is preserved. When `supabase.auth.onAuthStateChange` detects a `SIGNED_OUT` event, it safely invokes `Purchases.logOut()`.
+- **Platform Scope Fix:** `logIn` and `logOut` calls are wrapped with `Platform.OS === 'ios'` to prevent the unconfigured SDK from crashing on Android devices.
+
+### 3. What Is NOT Implemented Yet
+- No paywall UI, pricing configurations, or purchase buttons exist.
+- Weekly bonus coin logic and backend subscription synchronizations (webhooks, APIs) are not built.
+- Account deletion integration: The Supabase user deletion flow (`DELETE /api/v1/users/me`) is intact. The backend does not yet delete the RevenueCat customer via the REST API; this is reserved for a future backend implementation phase.
+- App Store Connect and Google Play products are not configured.
