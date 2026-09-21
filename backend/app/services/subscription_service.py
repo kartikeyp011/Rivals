@@ -26,6 +26,11 @@ class SubscriptionService:
             logger.info(f"RevenueCat event {event_id} already processed. Skipping.")
             return {"status": "already_processed"}
             
+        event_type = event.type
+        if event_type == 'TEST':
+            logger.info(f"RevenueCat TEST event {event_id} acknowledged.")
+            return {"status": "processed"}
+            
         app_user_id = event.app_user_id
         
         # Try to validate that app_user_id is a valid UUID matching our auth.users
@@ -39,7 +44,6 @@ class SubscriptionService:
             logger.warning(f"RevenueCat event {event_id} has invalid UUID format for app_user_id: {app_user_id}. Ignoring safely.")
             return {"status": "ignored_invalid_user_id"}
 
-        event_type = event.type
         env = 'sandbox' if event.environment.lower() == 'sandbox' else 'production'
         
         purchased_at = self._ms_to_datetime(event.purchased_at_ms)

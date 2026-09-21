@@ -6,21 +6,23 @@ class RevenueCatEventEvent(BaseModel):
     id: str
     type: str
     app_user_id: str
-    aliases: list[str]
-    original_app_user_id: str
-    product_id: str
-    entitlement_ids: list[str]
-    period_type: str
-    purchased_at_ms: int
+    aliases: Optional[list[str]] = None
+    original_app_user_id: Optional[str] = None
+    product_id: Optional[str] = None
+    entitlement_ids: Optional[list[str]] = None
+    period_type: Optional[str] = None
+    purchased_at_ms: Optional[int] = None
     expiration_at_ms: Optional[int] = None
     environment: str
     store: str
-    transaction_id: str
-    original_transaction_id: str
+    transaction_id: Optional[str] = None
+    original_transaction_id: Optional[str] = None
     
     # Optional fields for various event types
     cancel_reason: Optional[str] = None
     new_product_id: Optional[str] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
     
     model_config = ConfigDict(extra='ignore')
 

@@ -24,8 +24,10 @@ def create_payload(event_type: str, app_user_id: str, event_id: str = None) -> d
             "expiration_at_ms": int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).timestamp() * 1000),
             "environment": "SANDBOX",
             "store": "APP_STORE",
-            "transaction_id": "tx_" + str(uuid4())[:8],
-            "original_transaction_id": "orig_tx_" + str(uuid4())[:8]
+            "transaction_id": "tx_" + str(uuid4())[:8] if event_type != "TEST" else None,
+            "original_transaction_id": "orig_tx_" + str(uuid4())[:8] if event_type != "TEST" else None,
+            "entitlement_ids": ["rivals_plus"] if event_type != "TEST" else None,
+            "product_id": "rivals_plus_monthly" if event_type != "TEST" else "test_product",
         }
     }
 
@@ -76,6 +78,44 @@ async def test_webhook_unknown_user(client, monkeypatch):
     # Should safely ignore
     assert response.status_code == 200
     assert response.json() == {"status": "ignored_unknown_user"}
+
+@pytest.mark.asyncio
+async def test_webhook_test_event(client, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "REVENUECAT_WEBHOOK_SECRET", "test_secret")
+    
+    event_id = str(uuid4())
+    payload = {
+        "api_version": "1.0",
+        "event": {
+            "id": event_id,
+            "type": "TEST",
+            "app_user_id": "test_user_from_dashboard",
+            "aliases": None,
+            "original_app_user_id": None,
+            "product_id": "test_product",
+            "entitlement_ids": None,
+            "period_type": None,
+            "purchased_at_ms": 1234567890,
+            "expiration_at_ms": 1234567890,
+            "environment": "PRODUCTION",
+            "store": "PLAY_STORE",
+            "transaction_id": None,
+            "original_transaction_id": None,
+            "price": None,
+            "currency": None
+        }
+    }
+    
+    response = client.post(
+        "/api/v1/webhooks/revenuecat", 
+        json=payload, 
+        headers={"Authorization": "Bearer test_secret"}
+    )
+    
+    # Should successfully process and return 200 without DB changes
+    assert response.status_code == 200
+    assert response.json() == {"status": "processed"}
 
 @pytest.mark.asyncio
 async def test_webhook_lifecycle_and_idempotency(client, test_user_1, monkeypatch):
