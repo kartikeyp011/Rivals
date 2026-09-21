@@ -1,9 +1,13 @@
 import logging
 from asyncpg import Connection
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from app.schemas.revenuecat import RevenueCatEventRequest
+from app.schemas.subscription_bonus import WeeklyBonusClaimResponse
+from app.schemas.coin import CoinLedgerReason
 from app.repositories.subscription_repository import SubscriptionRepository
+from app.services.coin_service import CoinService
+from app.core.config import settings
 from app.core.errors import NotFoundError, ConflictError
 
 logger = logging.getLogger(__name__)
@@ -128,4 +132,59 @@ class SubscriptionService:
                 environment=env,
                 product_id=product_id,
                 processing_result=processing_result
+            )
+
+    def _get_current_weekly_period(self):
+        # Weekly period: Monday 00:00:00 UTC through Sunday 23:59:59 UTC
+        now = datetime.now(timezone.utc)
+        # weekday() returns 0 for Monday, 6 for Sunday
+        days_since_monday = now.weekday()
+        monday_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        sunday_end = monday_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        return monday_start, sunday_end
+
+    async def claim_weekly_bonus(self, user_id: str) -> WeeklyBonusClaimResponse:
+        sub = await self.repo.get_active_subscription(user_id, 'rivals_plus')
+        
+        if not sub or sub['status'] != 'active':
+            # Sub is either missing, expired, past_due, etc.
+            # We return early. Wait, if it's inactive, we should raise an error or return a specific response.
+            # The user asked for "Not eligible: appropriate HTTP status". We can raise an error or just return.
+            raise ConflictError("Active Rivalss+ subscription required to claim weekly bonus")
+
+        period_start, period_end = self._get_current_weekly_period()
+        coins_awarded = settings.WEEKLY_BONUS_COINS
+        
+        coin_service = CoinService(self.conn)
+
+        async with self.conn.transaction():
+            claim_id = await self.repo.insert_weekly_claim(user_id, period_start, period_end, coins_awarded)
+            
+            if not claim_id:
+                # Already claimed this period
+                current_balance = await coin_service.get_balance(user_id)
+                return WeeklyBonusClaimResponse(
+                    claimed=False,
+                    already_claimed=True,
+                    coins_awarded=0,
+                    balance=current_balance,
+                    period_start=period_start,
+                    period_end=period_end
+                )
+
+            # Insert succeeded, award coins
+            ledger_entry = await coin_service.add_coins(
+                user_id=user_id,
+                amount=coins_awarded,
+                reason=CoinLedgerReason.weekly_bonus,
+                reference_table='rivals_plus_weekly_claims'
+            )
+            
+            return WeeklyBonusClaimResponse(
+                claimed=True,
+                already_claimed=False,
+                coins_awarded=coins_awarded,
+                balance=ledger_entry.balance_after,
+                period_start=period_start,
+                period_end=period_end
             )

@@ -1628,3 +1628,12 @@ This checklist represents the complete set of actions that MUST eventually be pe
 - [ ] Confirmation that Rivals deletion does not accidentally cancel the Apple subscription (user must manage manually via OS)
 - [ ] Final paywall / App Store Review screenshot generation
 - [ ] Final production smoke test after App Store approval
+
+## Weekly Bonus Coins
+
+Rivals+ subscribers are entitled to a weekly bonus of 250 coins (configured via \WEEKLY_BONUS_COINS\ in the backend).
+
+- **Weekly Period**: Monday 00:00:00 UTC through Sunday 23:59:59 UTC.
+- **Eligibility**: The user must have an \ctive\ Rivals+ subscription in the authoritative \subscriptions\ table (this includes canceled-but-still-active subscriptions until they reach their \expires_at\ date).
+- **Claim Endpoint**: \POST /api/v1/subscriptions/rivals-plus/weekly-bonus/claim- **Atomicity/Idempotency**: Claims are recorded in the ivals_plus_weekly_claims\ table, which uses a unique constraint on \(user_id, period_start)\. The database uses \ON CONFLICT DO NOTHING\ within a transaction block to guarantee that concurrent requests safely return an \lready_claimed: true\ response without double-awarding coins.
+- **Dependencies**: Relies entirely on the existing \CoinService\ economy system and ledger.

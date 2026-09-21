@@ -120,3 +120,38 @@ class SubscriptionRepository:
             UUID(user_id),
             entitlement_id
         )
+
+    async def get_active_subscription(self, user_id: str, entitlement_id: str) -> Optional[dict]:
+        row = await self.conn.fetchrow(
+            """
+            SELECT status, will_renew, expires_at
+            FROM subscriptions
+            WHERE user_id = $1 AND entitlement_id = $2
+            """,
+            UUID(user_id),
+            entitlement_id
+        )
+        return dict(row) if row else None
+
+    async def insert_weekly_claim(
+        self,
+        user_id: str,
+        period_start: datetime,
+        period_end: datetime,
+        coins_awarded: int
+    ) -> Optional[str]:
+        # Uses ON CONFLICT DO NOTHING to guarantee atomicity. 
+        # If it returns an ID, it was inserted successfully. Otherwise, it was a duplicate claim.
+        row = await self.conn.fetchrow(
+            """
+            INSERT INTO rivals_plus_weekly_claims (user_id, period_start, period_end, coins_awarded)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id, period_start) DO NOTHING
+            RETURNING id
+            """,
+            UUID(user_id),
+            period_start,
+            period_end,
+            coins_awarded
+        )
+        return str(row['id']) if row else None

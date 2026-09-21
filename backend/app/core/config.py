@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "local"
     LOG_LEVEL: str = "INFO"
     IDEMPOTENCY_KEY_TTL_SECONDS: int = 86400
+    WEEKLY_BONUS_COINS: int = 250
     
     # Apple Sign-In
     APPLE_TEAM_ID: str | None = None
