@@ -3,9 +3,11 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAppleAuth } from '../../hooks/useAppleAuth';
+import { useGoogleAuth } from '../../hooks/useGoogleAuth';
 
 export default function SignInScreen() {
   const { signIn: signInApple, loading: loadingApple } = useAppleAuth();
+  const { signIn: signInGoogle, loading: loadingGoogle } = useGoogleAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -79,8 +81,16 @@ export default function SignInScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity style={styles.socialButton}>
-          <Text style={styles.socialText}>Continue with Google</Text>
+        <TouchableOpacity 
+          style={styles.socialButton}
+          onPress={signInGoogle}
+          disabled={loadingGoogle}
+        >
+          {loadingGoogle ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.socialText}>Continue with Google</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity 

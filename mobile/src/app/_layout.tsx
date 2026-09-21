@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -6,7 +7,7 @@ import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
 
 // RevenueCat public API key for iOS from environment variables
-const RC_APPLE_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY || "";
+const RC_APPLE_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY || '';
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);

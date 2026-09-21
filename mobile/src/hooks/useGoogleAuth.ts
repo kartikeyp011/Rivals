@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
 
@@ -37,11 +38,29 @@ export function useGoogleAuth() {
         'rivals://auth/callback'
       );
 
-      // WebBrowser result type
-      if (result.type === 'success') {
-        // The deep link rivals://auth/callback is natively intercepted by Expo Router.
-        // We do nothing here to prevent double-routing race conditions.
-        console.log('Google login browser success. Awaiting deep link routing...');
+      if (result.type === 'success' && result.url) {
+        console.log('Google login browser success. Redirect URL:', result.url);
+        
+        // Extract query and hash parameters
+        const parsed = Linking.parse(result.url);
+        const queryParams: Record<string, string> = {};
+        if (parsed.queryParams) {
+          Object.entries(parsed.queryParams).forEach(([k, v]) => {
+            if (typeof v === 'string') queryParams[k] = v;
+          });
+        }
+        const hash = result.url.split('#')[1];
+        if (hash) {
+          const hashParams = new URLSearchParams(hash);
+          hashParams.forEach((val, key) => {
+            queryParams[key] = val;
+          });
+        }
+
+        router.push({
+          pathname: '/auth/callback',
+          params: queryParams,
+        });
       } else if (result.type === 'cancel' || result.type === 'dismiss') {
         console.log('User cancelled Google login.');
       } else {

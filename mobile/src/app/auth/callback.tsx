@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { supabase } from '../../lib/supabase';
@@ -22,7 +22,6 @@ const withTimeout = <T,>(promise: PromiseLike<T> | Promise<T>, ms: number, desc:
 };
 
 export default function CallbackScreen() {
-  // Use expo-router params as authoritative source, but also check Linking.useURL()
   const params = useLocalSearchParams();
   const url = Linking.useURL();
   
@@ -30,7 +29,6 @@ export default function CallbackScreen() {
   const [statusText, setStatusText] = useState('Authenticating...');
   const [logs, setLogs] = useState<string[]>([]);
   
-  // Guard against processing the same event twice
   const processedRef = useRef<string | null>(null);
 
   const addLog = (msg: string) => {
@@ -45,13 +43,19 @@ export default function CallbackScreen() {
       
       // 1. First, check Expo Router params
       if (params.code || params.access_token || params.error) {
-        Object.assign(finalParams, params);
+        Object.entries(params).forEach(([k, v]) => {
+          if (typeof v === 'string') finalParams[k] = v;
+          else if (Array.isArray(v) && v.length > 0) finalParams[k] = v[0];
+        });
       } 
       // 2. Fallback to parsing raw URL if router params are empty
       else if (url) {
         const parsed = Linking.parse(url as string);
         if (parsed.queryParams) {
-          Object.assign(finalParams, parsed.queryParams);
+          Object.entries(parsed.queryParams).forEach(([k, v]) => {
+            if (typeof v === 'string') finalParams[k] = v;
+            else if (Array.isArray(v) && v.length > 0) finalParams[k] = v[0];
+          });
         }
         const hash = url?.split('#')[1];
         if (hash) {
@@ -61,13 +65,11 @@ export default function CallbackScreen() {
           });
         }
       } else {
-        // No parameters available yet
         return;
       }
 
       const { code, access_token, refresh_token, error: urlError, error_description } = finalParams;
 
-      // Unique identifier for this callback event to prevent duplicate execution
       const eventId = code || access_token || urlError || 'unknown';
       if (!eventId || eventId === 'unknown') {
         return;
@@ -196,6 +198,12 @@ export default function CallbackScreen() {
       {error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Error: {error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => router.replace('/welcome' as any)}
+          >
+            <Text style={styles.retryButtonText}>Return to Welcome</Text>
+          </TouchableOpacity>
           <Text style={styles.logTitle}>Diagnostic Logs:</Text>
           {logs.map((log, i) => (
             <Text key={i} style={styles.logText}>{log}</Text>
@@ -237,6 +245,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#6c5ce7',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   logTitle: {
     color: '#ccccdd',
