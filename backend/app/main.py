@@ -42,7 +42,7 @@ app.add_exception_handler(Exception, global_exception_handler)
 
 # Register routers
 app.include_router(arenas.router, prefix="/api/v1")
-app.include_router(invites.router)  # Handles /api/v1/invites and /arenas/.../invites
+app.include_router(invites.router, prefix="/api/v1")  # Handles /api/v1/invites and /api/v1/arenas/.../invites
 app.include_router(participants.router, prefix="/api/v1")
 app.include_router(rounds.router, prefix="/api/v1")
 app.include_router(attempts.router, prefix="/api/v1")

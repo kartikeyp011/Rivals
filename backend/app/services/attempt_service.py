@@ -54,7 +54,7 @@ class AttemptService:
             correct_option = await self.round_repo.get_correct_option_for_round(round_id)
             is_correct = (data.selected_option == correct_option)
 
-            status = 'submitted' if is_correct else 'in_progress'
+            status = 'submitted'
 
             attempt = await self.attempt_repo.update_attempt(
                 round_id=round_id,
@@ -70,21 +70,20 @@ class AttemptService:
             if not attempt:
                 raise ConflictError("No active attempt found for this round")
 
-            if is_correct:
-                score = await scoring_service.score_attempt(
-                    arena_id=arena_id,
-                    round_id=round_id,
-                    user_id=user_id,
-                    is_correct=is_correct,
-                    started_at=rnd.started_at,
-                    ends_at=rnd.ends_at,
-                    submitted_at=attempt.submitted_at or now
-                )
-                if score:
-                    # Inject points_awarded into the AttemptResponse
-                    attempt_data = attempt.model_dump()
-                    attempt_data['points_awarded'] = score.total_points
-                    attempt = AttemptResponse(**attempt_data)
+            score = await scoring_service.score_attempt(
+                arena_id=arena_id,
+                round_id=round_id,
+                user_id=user_id,
+                is_correct=is_correct,
+                started_at=rnd.started_at,
+                ends_at=rnd.ends_at,
+                submitted_at=attempt.submitted_at or now
+            )
+            if score:
+                # Inject points_awarded into the AttemptResponse
+                attempt_data = attempt.model_dump()
+                attempt_data['points_awarded'] = score.total_points
+                attempt = AttemptResponse(**attempt_data)
 
             # Check for round completion
             await scoring_service.check_round_complete(arena_id, round_id)

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, ActivityIndicator, Image, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
@@ -9,6 +9,7 @@ export default function ProfileSetupScreen() {
   const [username, setUsername] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('😊');
   const [googleAvatar, setGoogleAvatar] = useState<string | null>(null);
+  const [globalOptIn, setGlobalOptIn] = useState(false);
   const [loading, setLoading] = useState(true); // loading initial metadata
   const [saving, setSaving] = useState(false);
 
@@ -61,6 +62,7 @@ export default function ProfileSetupScreen() {
         id: user.id,
         username: username,
         avatar_url: selectedAvatar,
+        global_opt_in: globalOptIn,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
 
@@ -132,6 +134,19 @@ export default function ProfileSetupScreen() {
           autoCorrect={false}
         />
         <Text style={styles.hint}>Must be unique. Letters, numbers, underscores only.</Text>
+      </View>
+
+      <View style={styles.privacySection}>
+        <View style={styles.privacyRow}>
+          <Text style={styles.privacyLabel}>Show me on the global leaderboard</Text>
+          <Switch
+            value={globalOptIn}
+            onValueChange={setGlobalOptIn}
+            trackColor={{ false: '#2a2a5a', true: '#6c5ce7' }}
+            thumbColor={globalOptIn ? '#ffffff' : '#f4f3f4'}
+          />
+        </View>
+        <Text style={styles.hint}>If enabled, your username, avatar, score, and rank will be visible to everyone on the global leaderboard.</Text>
       </View>
 
       <TouchableOpacity 
@@ -216,9 +231,29 @@ const styles = StyleSheet.create({
     borderColor: '#2a2a5a',
   },
   hint: {
-    color: '#555',
+    color: '#888',
     fontSize: 12,
-    marginTop: 6,
+    marginTop: 8,
+  },
+  privacySection: {
+    marginBottom: 32,
+    backgroundColor: '#1a1a3a',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a5a',
+  },
+  privacyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  privacyLabel: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+    flex: 1,
   },
   continueButton: {
     backgroundColor: '#6c5ce7',

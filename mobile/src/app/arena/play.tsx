@@ -80,15 +80,14 @@ export default function PlayRoundScreen() {
       
       const attemptRes = await submitAttempt(arenaId, roundId, selected, responseMs, idempotencyKey);
       
-      if (attemptRes.is_correct) {
+      if (attemptRes.is_correct || attemptRes.status === 'submitted') {
         setResult(attemptRes);
       } else if (attemptRes.status === 'timed_out' || attemptRes.status === 'void') {
         // Technically backend handled it as terminal
         setIsTimeUp(true);
       } else {
-        // Incorrect, let them try again
-        setTransientFeedback("Incorrect! Keep trying.");
-        setSelected(null);
+        // Fallback
+        setError("Something went wrong");
       }
     } catch (err: any) {
       // 409 usually means time limit expired or already submitted
@@ -123,11 +122,14 @@ export default function PlayRoundScreen() {
 
   if (result) {
     const points = result.points_awarded || 0;
+    const isCorrect = result.is_correct;
     return (
       <View style={styles.container}>
         <View style={styles.resultContainer}>
-          <Text style={styles.resultEmoji}>✅</Text>
-          <Text style={[styles.resultText, styles.correctText]}>Correct!</Text>
+          <Text style={styles.resultEmoji}>{isCorrect ? '✅' : '❌'}</Text>
+          <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
+            {isCorrect ? 'Correct!' : 'Incorrect!'}
+          </Text>
           <Text style={styles.resultSubtext}>+{points} points earned!</Text>
           <TouchableOpacity style={styles.continueButton} onPress={() => router.replace(`/arena/${arenaId}` as any)}>
             <Text style={styles.continueButtonText}>Return to Lobby →</Text>

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -136,7 +136,11 @@ export default function LeaderboardsScreen() {
       {/* User Rank Card */}
       {userRank && (
         <View style={styles.userRankCard}>
-          <Text style={styles.userRankEmoji}>{userRank.avatar}</Text>
+          {userRank.avatar.startsWith('http') ? (
+            <Image source={{ uri: userRank.avatar }} style={styles.avatarImageLarge} />
+          ) : (
+            <Text style={styles.userRankEmoji}>{userRank.avatar}</Text>
+          )}
           <View style={styles.userRankInfo}>
             <Text style={styles.userRankName}>{userRank.name} (You)</Text>
             <Text style={styles.userRankScore}>Score: {userRank.score}</Text>
@@ -176,7 +180,11 @@ export default function LeaderboardsScreen() {
             ]}>
               <View style={styles.entryLeft}>
                 <Text style={styles.entryRank}>{getMedal(entry.rank)}</Text>
-                <Text style={styles.entryAvatar}>{entry.avatar}</Text>
+                {entry.avatar.startsWith('http') ? (
+                  <Image source={{ uri: entry.avatar }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.entryAvatar}>{entry.avatar}</Text>
+                )}
                 <View style={styles.entryInfo}>
                   <Text style={[
                     styles.entryName,
@@ -332,6 +340,18 @@ const styles = StyleSheet.create({
   },
   entryAvatar: {
     fontSize: 24,
+    marginRight: 12,
+  },
+  avatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 12,
+  },
+  avatarImageLarge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 12,
   },
   entryInfo: {

@@ -11,13 +11,8 @@ class LeaderboardService:
         self.repo = LeaderboardRepository(conn)
 
     async def record_score(self, user_id: str, completion_time_utc: datetime, timezone: str, score: int, is_winner: bool = False):
-        try:
-            tz = zoneinfo.ZoneInfo(timezone)
-        except Exception:
-            tz = zoneinfo.ZoneInfo("UTC")
-            
-        local_date = completion_time_utc.astimezone(tz).date()
-        daily_period_key = local_date.isoformat()
+        # For daily period, we define the canonical leaderboard day as UTC.
+        daily_period_key = completion_time_utc.date().isoformat()
         
         # Upsert daily
         await self.repo.upsert_score(user_id, "daily", daily_period_key, score, is_winner)

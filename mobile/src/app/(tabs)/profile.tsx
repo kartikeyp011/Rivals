@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -14,6 +14,7 @@ export default function ProfileScreen() {
     const [avatarUrl, setAvatarUrl] = useState<string>('👤');
     const [isDeleting, setIsDeleting] = useState(false);
     const [linkedProviders, setLinkedProviders] = useState({ google: false, apple: false });
+    const [globalOptIn, setGlobalOptIn] = useState(false);
 
     // RevenueCat State
     const [isSubscribed, setIsSubscribed] = useState(false);
@@ -65,7 +66,7 @@ export default function ProfileScreen() {
 
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
-                    .select('username, avatar_url')
+                    .select('username, avatar_url, global_opt_in')
                     .eq('id', user.id)
                     .single();
 
@@ -75,6 +76,9 @@ export default function ProfileScreen() {
                     }
                     if (profile.avatar_url) {
                         setAvatarUrl(profile.avatar_url);
+                    }
+                    if (profile.global_opt_in !== undefined && profile.global_opt_in !== null) {
+                        setGlobalOptIn(profile.global_opt_in);
                     }
                 }
             } catch (err) {
@@ -132,6 +136,20 @@ export default function ProfileScreen() {
             Alert.alert("Error", e.message || "Failed to restore purchases.");
         } finally {
             setIsLoadingSubscription(false);
+        }
+    };
+
+    const handleToggleGlobalOptIn = async (value: boolean) => {
+        // Optimistic update
+        setGlobalOptIn(value);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { error } = await supabase.from('profiles').update({ global_opt_in: value }).eq('id', user.id);
+            if (error) {
+                // Revert on failure
+                setGlobalOptIn(!value);
+                Alert.alert("Error", "Failed to save privacy preference.");
+            }
         }
     };
 
@@ -236,6 +254,19 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.card}>
                 <Text style={styles.cardTitle}>Account Settings</Text>
+
+                <View style={styles.settingRow}>
+                    <Text style={styles.settingText}>Show me on global leaderboard</Text>
+                    <Switch
+                        value={globalOptIn}
+                        onValueChange={handleToggleGlobalOptIn}
+                        trackColor={{ false: '#2a2a5a', true: '#6c5ce7' }}
+                        thumbColor={globalOptIn ? '#ffffff' : '#f4f3f4'}
+                    />
+                </View>
+                <Text style={styles.settingHint}>
+                    If enabled, your username, avatar, score, and rank will be visible to everyone on the global leaderboard.
+                </Text>
 
                 <View style={styles.providersContainer}>
                     <Text style={styles.providersTitle}>Sign-in methods</Text>
@@ -351,9 +382,26 @@ const styles = StyleSheet.create({
         borderBottomColor: '#2a2a5a',
     },
     providersTitle: {
-        color: '#aaaacc',
-        fontSize: 14,
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: 'bold',
         marginBottom: 8,
+    },
+    settingRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 12,
+        marginBottom: 4,
+    },
+    settingText: {
+        color: '#ffffff',
+        fontSize: 16,
+    },
+    settingHint: {
+        color: '#888',
+        fontSize: 12,
+        marginBottom: 16,
     },
     providerText: {
         color: '#ffffff',

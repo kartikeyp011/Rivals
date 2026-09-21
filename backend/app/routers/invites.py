@@ -13,7 +13,7 @@ router = APIRouter(tags=["invites"])
 def get_invite_service(conn: Connection = Depends(get_db_connection)) -> InviteService:
     return InviteService(conn)
 
-@router.get("/api/v1/invites", response_model=List[InviteResponse])
+@router.get("/invites", response_model=List[InviteResponse])
 async def list_invites(
     user_id: str = Depends(get_current_user),
     service: InviteService = Depends(get_invite_service)

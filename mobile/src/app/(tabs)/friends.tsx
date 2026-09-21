@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import * as api from '@/lib/api';
@@ -160,7 +160,11 @@ export default function FriendsScreen() {
                 ) : (
                   friends.map((friend) => (
                     <View key={friend.friend_id} style={styles.friendItem}>
-                      <Text style={styles.friendAvatar}>{friend.friend_avatar_url || '👤'}</Text>
+                      {friend.friend_avatar_url?.startsWith('http') ? (
+                        <Image source={{ uri: friend.friend_avatar_url }} style={styles.avatarImage} />
+                      ) : (
+                        <Text style={styles.friendAvatar}>{friend.friend_avatar_url || '👤'}</Text>
+                      )}
                       <View style={styles.friendInfo}>
                         <Text style={styles.friendName}>{friend.friend_username}</Text>
                         <Text style={styles.friendStatus}>Friend</Text>
@@ -188,7 +192,11 @@ export default function FriendsScreen() {
                 ) : (
                   requests.map((request) => (
                     <View key={request.id} style={styles.requestItem}>
-                      <Text style={styles.requestAvatar}>{request.friend_avatar_url || '👤'}</Text>
+                      {request.friend_avatar_url?.startsWith('http') ? (
+                        <Image source={{ uri: request.friend_avatar_url }} style={styles.avatarImage} />
+                      ) : (
+                        <Text style={styles.requestAvatar}>{request.friend_avatar_url || '👤'}</Text>
+                      )}
                       <View style={styles.requestInfo}>
                         <Text style={styles.requestName}>{request.friend_username}</Text>
                         <Text style={styles.requestStatus}>Pending</Text>
@@ -234,7 +242,11 @@ export default function FriendsScreen() {
                 ) : (
                   availableUsers.map((user) => (
                     <View key={user.id} style={styles.addItem}>
-                      <Text style={styles.addAvatar}>{user.avatar_url || '👤'}</Text>
+                      {user.avatar_url?.startsWith('http') ? (
+                        <Image source={{ uri: user.avatar_url }} style={styles.avatarImage} />
+                      ) : (
+                        <Text style={styles.addAvatar}>{user.avatar_url || '👤'}</Text>
+                      )}
                       <View style={styles.addInfo}>
                         <Text style={styles.addName}>{user.username}</Text>
                       </View>
@@ -417,6 +429,12 @@ const styles = StyleSheet.create({
   },
   addAvatar: {
     fontSize: 28,
+    marginRight: 12,
+  },
+  avatarImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 12,
   },
   addInfo: {

@@ -115,15 +115,6 @@ export default function ArenaScreen() {
             <Text style={styles.infoText}>Status: <Text style={styles.highlight}>{arena.status}</Text></Text>
             <Text style={styles.infoText}>Difficulty: {arena.difficulty || 'Any'}</Text>
             <Text style={styles.infoText}>Time Limit: {arena.time_limit_seconds}s per round</Text>
-            
-            <View style={styles.participantsList}>
-              <Text style={styles.participantsTitle}>Participants ({participants.length}/{arena.max_participants})</Text>
-              {participants.map(p => (
-                <Text key={p.user_id} style={styles.participantName}>
-                  👤 Player {p.user_id.substring(0, 6)} ({p.status})
-                </Text>
-              ))}
-            </View>
           </View>
 
           <View style={styles.progressContainer}>
@@ -131,7 +122,7 @@ export default function ArenaScreen() {
               <View style={[styles.progressFill, { width: `${(completedCount / Math.max(1, rounds.length)) * 100}%` }]} />
             </View>
             <Text style={styles.progressText}>
-              {completedCount} of {rounds.length} completed
+              Round {completedCount} of {rounds.length} completed
             </Text>
           </View>
 
@@ -199,7 +190,10 @@ export default function ArenaScreen() {
           </View>
 
           {allCompleted && (
-            <TouchableOpacity style={styles.resultsButton} onPress={() => {}}>
+            <TouchableOpacity
+              style={styles.resultsButton}
+              onPress={() => router.push(`/arena/results?arenaId=${id}`)}
+            >
               <Text style={styles.resultsButtonText}>📊 View Results</Text>
             </TouchableOpacity>
           )}

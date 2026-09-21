@@ -26,7 +26,7 @@ class ScoringService:
 
     async def score_attempt(self, arena_id: UUID, round_id: UUID, user_id: str, is_correct: bool, started_at: datetime, ends_at: datetime, submitted_at: datetime):
         if not is_correct:
-            return None
+            return await self.score_repo.create_score(arena_id, round_id, user_id, 0, 0)
 
         # Base points for correct answer
         points_earned = 100
