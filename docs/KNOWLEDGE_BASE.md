@@ -1581,3 +1581,50 @@ Before public availability, a safe production test should be performed:
 - Weekly bonus coin distribution logic.
 - Backend subscription table, authorization guards, and RevenueCat webhook syncing.
 - App Store Connect products have not been modified inside this phase.
+
+## Step N+11: RevenueCat Webhook Observability and Synthetic Testing (2026-09-21)
+
+### 1. Webhook Observability
+- Added a new migration (`20260921200000_revenuecat_observability.sql`) to expand the `revenuecat_events` idempotency table.
+- New tracking fields: `event_type`, `app_user_id`, `environment`, `product_id`, `processing_result`.
+- Reused existing `processed_at` timestamp.
+- Raw payloads and secrets are purposefully NOT stored in the database for security and compliance.
+- The repository layer handles the metadata update safely via a `finally` block in `SubscriptionService.handle_webhook()`.
+
+### 2. Synthetic Lifecycle Testing
+- Built a development-only test script `backend/test_revenuecat_lifecycle.py` that sends synthetic webhook requests locally or to production.
+- Script ensures strict isolation by requiring `TEST_USER_ID` as an environment variable and failing without it.
+- Explicitly mimics Apple Sandbox webhooks: `environment = SANDBOX`, `product_id = rivals_plus_monthly`, `entitlement_ids = ["rivals_plus"]`.
+- Tests `INITIAL_PURCHASE`, idempotency, `CANCELLATION`, `UNCANCELLATION`, `BILLING_ISSUE`, `RENEWAL`, and `EXPIRATION` in sequence.
+- Asserts state changes dynamically in the `subscriptions` table using `asyncpg`.
+
+### 3. Production Smoke Testing
+- The synthetic script includes a manual `PRODUCTION_SMOKE_TEST=true` mode to verify end-to-end webhook receipt on the live Render API.
+- Only fires a single `INITIAL_PURCHASE` event and asserts the row is correctly created.
+- Mandates explicit configuration of `WEBHOOK_URL`, `WEBHOOK_SECRET`, and `TEST_USER_ID`.
+
+---
+
+# iOS FINAL E2E TESTING CHECKLIST
+
+This checklist represents the complete set of actions that MUST eventually be performed on a physical iPhone or via a TestFlight build to fully validate the RevenueCat implementation.
+
+**STATUS: ALL ITEMS ARE CURRENTLY NOT YET TESTED.**
+
+- [ ] Google sign-in
+- [ ] Apple sign-in
+- [ ] Supabase UUID → RevenueCat App User ID verification (Verify it passes the exact `session.user.id`)
+- [ ] Rivalss+ paywall rendering correctly with App Store pricing
+- [ ] Apple Sandbox purchase successful
+- [ ] Entitlement activation immediate inside the app
+- [ ] App restart persistence (subscription remains active across cold starts)
+- [ ] Restore Purchases (works correctly when reinstalling or changing devices)
+- [ ] Manage Subscription link opens Apple Subscriptions menu
+- [ ] Subscription lifecycle / cancellation behavior via Apple Sandbox Settings
+- [ ] Weekly bonus coins claiming UI (NOT IMPLEMENTED YET)
+- [ ] Duplicate weekly claim prevention (NOT IMPLEMENTED YET)
+- [ ] Sign out / sign in maintains separation of state
+- [ ] Account deletion with an active subscription (cleanup of RevenueCat customer REST API)
+- [ ] Confirmation that Rivals deletion does not accidentally cancel the Apple subscription (user must manage manually via OS)
+- [ ] Final paywall / App Store Review screenshot generation
+- [ ] Final production smoke test after App Store approval

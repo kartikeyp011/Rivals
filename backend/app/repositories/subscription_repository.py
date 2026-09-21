@@ -30,6 +30,34 @@ class SubscriptionRepository:
                 return True
             raise e
 
+    async def update_event_metadata(
+        self,
+        event_id: str,
+        event_type: Optional[str] = None,
+        app_user_id: Optional[str] = None,
+        environment: Optional[str] = None,
+        product_id: Optional[str] = None,
+        processing_result: Optional[str] = None
+    ):
+        await self.conn.execute(
+            """
+            UPDATE revenuecat_events
+            SET
+                event_type = $1,
+                app_user_id = $2,
+                environment = $3,
+                product_id = $4,
+                processing_result = $5
+            WHERE event_id = $6
+            """,
+            event_type,
+            app_user_id,
+            environment,
+            product_id,
+            processing_result,
+            event_id
+        )
+
     async def upsert_subscription(
         self,
         user_id: str,
