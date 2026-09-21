@@ -797,6 +797,14 @@ Only after these checks should Step 7 begin.
 - Added end-to-end multiplayer game-loop tests.
 - Verified combined tests at 8/8 passing according to Antigravity.
 
+## RevenueCat Webhooks Implementation
+- **Subscription Table**: Created `subscriptions` table mapping `revenuecat_app_user_id` to Supabase `auth.users(id)`.
+- **Idempotency Strategy**: Created `revenuecat_events` table mapping processed event IDs to prevent duplicate application of webhook effects.
+- **Webhook Endpoint**: Implemented `POST /api/v1/webhooks/revenuecat` authenticated securely via `REVENUECAT_WEBHOOK_SECRET` environment variable.
+- **Event Handling**: Safely mapping `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `UNCANCELLATION`, `EXPIRATION`, and `BILLING_ISSUE` events to internal status updates (`active`, `expired`, `past_due`, `canceled`). Unrecognized users are safely ignored.
+- **Testing**: Added automated tests for invalid authorizations, malformed payloads, unknown users, missing users, and proper idempotent application of lifecycle events.
+- **Current Status**: Backend webhook synchronization logic is fully tested against local and production schemas. Remaining steps are environment configuration deployment and creating the RevenueCat webhook endpoint configuration in their dashboard.
+
 ## Step 7 (Account Deletion & Data Deletion)
 - Designed and implemented a compliant and safe account deletion feature.
 - **Architecture**:

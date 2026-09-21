@@ -8,7 +8,7 @@ from app.core.db import init_db_pool, close_db_pool
 from app.core.errors import AppError, app_error_handler, global_exception_handler
 
 # Import routers
-from app.routers import arenas, invites, participants, rounds, attempts, results, friends, users, coins, wagers, streaks, leaderboards
+from app.routers import arenas, invites, participants, rounds, attempts, results, friends, users, coins, wagers, streaks, leaderboards, webhooks
 
 # Setup basic logging
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -53,6 +53,7 @@ app.include_router(friends.router)
 app.include_router(users.router)
 app.include_router(streaks.router)
 app.include_router(leaderboards.router)
+app.include_router(webhooks.router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():

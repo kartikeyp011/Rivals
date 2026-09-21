@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SUPABASE_JWT_SECRET: str
     SUPABASE_JWKS_URL: str | None = None
+    REVENUECAT_WEBHOOK_SECRET: str
     
     CORS_ALLOWED_ORIGINS: str = "*"
     ENVIRONMENT: str = "local"
