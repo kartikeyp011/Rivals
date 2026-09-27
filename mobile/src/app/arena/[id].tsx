@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getArena, getArenaRounds, startArena, getParticipants, getFriends, sendInvite, getArenaInvites, getMyAttempts } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+
+// Determine if an arena is a Daily Arena (independent single-player mode)
+function isDailyArena(arena: any): boolean {
+  return arena?.category === 'daily' || arena?.metadata?.type === 'daily';
+}
 
 export default function ArenaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,7 +25,8 @@ export default function ArenaScreen() {
 
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userAttempts, setUserAttempts] = useState<any[]>([]);
+  // Only count submitted attempts (not in_progress pre-created placeholders)
+  const [submittedAttempts, setSubmittedAttempts] = useState<any[]>([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -41,24 +47,38 @@ export default function ArenaScreen() {
       if (!arena) setLoading(true);
       setError(null);
 
-      const [arenaData, roundsData, participantsData, friendsData, invitesData] = await Promise.all([
+      const [arenaData, roundsData, participantsData] = await Promise.all([
         getArena(id),
         getArenaRounds(id),
         getParticipants(id),
-        getFriends().catch(() => []),
-        getArenaInvites(id).catch(() => [])
       ]);
 
+      // Only load friends/invites for non-daily arenas
+      let friendsData: any[] = [];
+      let invitesData: any[] = [];
+      if (!isDailyArena(arenaData)) {
+        [friendsData, invitesData] = await Promise.all([
+          getFriends().catch(() => []),
+          getArenaInvites(id).catch(() => []),
+        ]);
+      }
+
       const activeRounds = roundsData.filter((r: any) => r.status === 'active');
-      const attemptsPromises = activeRounds.map((r: any) => getMyAttempts(id, r.id).catch(() => []));
-      const attemptsResults = await Promise.all(attemptsPromises);
+      const attemptsResults = await Promise.all(
+        activeRounds.map((r: any) => getMyAttempts(id, r.id).catch(() => []))
+      );
+      const allAttempts = attemptsResults.flat();
+      // Only submitted/timed_out/void attempts mean the player has played this round
+      const submitted = allAttempts.filter(
+        (a: any) => a.status === 'submitted' || a.status === 'timed_out' || a.status === 'void'
+      );
 
       setArena(arenaData);
       setRounds(roundsData.sort((a: any, b: any) => a.round_number - b.round_number));
       setParticipants(participantsData);
       setFriends(friendsData);
       setArenaInvites(invitesData.filter((i: any) => i.status === 'pending'));
-      setUserAttempts(attemptsResults.flat());
+      setSubmittedAttempts(submitted);
     } catch (err: any) {
       setError(err.message || 'Failed to load arena details');
     } finally {
@@ -82,6 +102,9 @@ export default function ArenaScreen() {
   const handleInvite = async (friendId: string) => {
     try {
       await sendInvite(id, friendId, uuidv4());
+      // Refresh invites list so UI stays accurate
+      const invitesData = await getArenaInvites(id).catch(() => []);
+      setArenaInvites(invitesData.filter((i: any) => i.status === 'pending'));
       Alert.alert('✅', 'Invite sent!');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to send invite');
@@ -103,11 +126,25 @@ export default function ArenaScreen() {
     );
   }
 
-  // Determine host status
-  const isHost = currentUserId === arena?.host_user_id;
+  const isDaily = isDailyArena(arena);
+  // Determine host status (not relevant for Daily Arena)
+  const isHost = !isDaily && currentUserId === arena?.host_user_id;
   const isPending = arena?.status === 'pending';
   const allCompleted = rounds.length > 0 && rounds.every(r => r.status === 'completed');
   const completedCount = rounds.filter(r => r.status === 'completed').length;
+
+  // Participants split by status
+  const activeParticipants = participants.filter(p => p.status === 'active');
+  const pendingInvites = arenaInvites; // already filtered to pending
+
+  // For Daily Arena: auto-start is implicit — the arena is always 'pending' for one player.
+  // Daily Arena does NOT require 2 participants.
+  const canStartCustomArena = !isDaily && isHost && activeParticipants.length >= 2;
+
+  // Invite button: show if active participants + pending invites < max_participants
+  // (for Custom Arena only)
+  const canInviteMore = !isDaily && isPending && isHost &&
+    (activeParticipants.length + pendingInvites.length) < (arena?.max_participants || 2);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -115,7 +152,7 @@ export default function ArenaScreen() {
         <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.backButton}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Arena Lobby</Text>
+        <Text style={styles.title}>{isDaily ? 'Daily Arena' : 'Arena Lobby'}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -128,11 +165,63 @@ export default function ArenaScreen() {
       {arena && (
         <>
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>{arena.category || 'Mixed'} Arena</Text>
+            <Text style={styles.infoTitle}>{isDaily ? '📅 Daily Arena' : `${arena.category || 'Mixed'} Arena`}</Text>
             <Text style={styles.infoText}>Status: <Text style={styles.highlight}>{arena.status}</Text></Text>
-            <Text style={styles.infoText}>Difficulty: {arena.difficulty || 'Any'}</Text>
+            {!isDaily && <Text style={styles.infoText}>Difficulty: {arena.difficulty || 'Any'}</Text>}
             <Text style={styles.infoText}>Time Limit: {arena.time_limit_seconds}s per round</Text>
+            {isDaily && (
+              <Text style={styles.dailyModeText}>Solo mode — no other players required</Text>
+            )}
           </View>
+
+          {/* Participants Section — Custom Arena only */}
+          {!isDaily && (
+            <View style={styles.participantsCard}>
+              <Text style={styles.participantsTitle}>Players</Text>
+
+              {activeParticipants.length === 0 ? (
+                <Text style={styles.emptyParticipant}>No players joined yet</Text>
+              ) : (
+                activeParticipants.map((p: any) => (
+                  <View key={p.user_id} style={styles.participantRow}>
+                    {p.avatar_url ? (
+                      <Image source={{ uri: p.avatar_url }} style={styles.participantAvatar} />
+                    ) : (
+                      <View style={styles.participantAvatarPlaceholder}>
+                        <Text style={styles.participantAvatarText}>
+                          {(p.username || '?').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.participantInfo}>
+                      <Text style={styles.participantName}>
+                        {p.username || 'Player'}
+                        {p.user_id === arena?.host_user_id ? ' 👑' : ''}
+                      </Text>
+                      <Text style={styles.participantStatus}>Joined</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+
+              {pendingInvites.length > 0 && (
+                <>
+                  <Text style={styles.pendingTitle}>Pending Invites</Text>
+                  {pendingInvites.map((invite: any) => (
+                    <View key={invite.id} style={styles.participantRow}>
+                      <View style={styles.participantAvatarPlaceholder}>
+                        <Text style={styles.participantAvatarText}>?</Text>
+                      </View>
+                      <View style={styles.participantInfo}>
+                        <Text style={styles.participantName}>Invited Player</Text>
+                        <Text style={styles.participantStatusPending}>Pending</Text>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
 
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
@@ -143,19 +232,28 @@ export default function ArenaScreen() {
             </Text>
           </View>
 
-          {isPending && (
+          {/* Custom Arena host controls */}
+          {!isDaily && isPending && isHost && (
             <View style={styles.hostActions}>
-              {isHost && (
-                <TouchableOpacity
-                  style={[styles.startArenaButton, (actionLoading || participants.filter(p => p.status === 'active').length < 2) && styles.disabledButton, { flex: 1, marginRight: 8 }]}
-                  onPress={handleStartArena}
-                  disabled={actionLoading || participants.filter(p => p.status === 'active').length < 2}
-                >
-                  {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.startArenaButtonText}>{participants.filter(p => p.status === 'active').length < 2 ? 'Waiting for players...' : 'Start Arena'}</Text>}
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={[
+                  styles.startArenaButton,
+                  (!canStartCustomArena || actionLoading) && styles.disabledButton,
+                  { flex: 1, marginRight: canInviteMore ? 8 : 0 }
+                ]}
+                onPress={handleStartArena}
+                disabled={!canStartCustomArena || actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.startArenaButtonText}>
+                    {activeParticipants.length < 2 ? 'Waiting for players...' : 'Start Arena'}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-              {participants.length + arenaInvites.length < arena.max_participants && (
+              {canInviteMore && (
                 <TouchableOpacity
                   style={[styles.inviteArenaButton, { flex: 1, marginLeft: 8 }]}
                   onPress={() => setInviteModalVisible(true)}
@@ -166,48 +264,67 @@ export default function ArenaScreen() {
             </View>
           )}
 
-          <View style={styles.roundsContainer}>
-            {rounds.map((round) => (
-              <View key={round.id} style={styles.roundCard}>
-                <View style={styles.roundHeader}>
-                  <Text style={styles.roundNumber}>Round {round.round_number}</Text>
-                  <View style={[
-                    styles.roundStatus,
-                    round.status === 'completed' && styles.statusCompleted,
-                    round.status === 'active' && styles.statusActive,
-                    round.status === 'pending' && styles.statusPending,
-                  ]}>
-                    <Text style={styles.roundStatusText}>
-                      {round.status === 'completed' && '✅ Done'}
-                      {round.status === 'active' && '▶ Active'}
-                      {round.status === 'pending' && '⏳ Pending'}
-                    </Text>
-                  </View>
-                </View>
+          {/* Daily Arena — single-player start: trigger start immediately */}
+          {isDaily && isPending && (
+            <TouchableOpacity
+              style={[styles.startArenaButton, actionLoading && styles.disabledButton]}
+              onPress={handleStartArena}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.startArenaButtonText}>Start Daily Arena</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
-                <View style={styles.roundBody}>
-                  <Text style={styles.roundIcon}>❓</Text>
-                  <View style={styles.roundInfo}>
-                    <Text style={styles.roundName}>{round.question_category}</Text>
-                    <Text style={styles.roundDesc}>Difficulty: {round.question_difficulty}</Text>
+          <View style={styles.roundsContainer}>
+            {rounds.map((round) => {
+              const hasSubmitted = submittedAttempts.some(a => a.round_id === round.id);
+              const canPlay = round.status === 'active' && !hasSubmitted;
+              return (
+                <View key={round.id} style={styles.roundCard}>
+                  <View style={styles.roundHeader}>
+                    <Text style={styles.roundNumber}>Round {round.round_number}</Text>
+                    <View style={[
+                      styles.roundStatus,
+                      round.status === 'completed' && styles.statusCompleted,
+                      round.status === 'active' && styles.statusActive,
+                      round.status === 'pending' && styles.statusPending,
+                    ]}>
+                      <Text style={styles.roundStatusText}>
+                        {round.status === 'completed' && '✅ Done'}
+                        {round.status === 'active' && '▶ Active'}
+                        {round.status === 'pending' && '⏳ Pending'}
+                      </Text>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.roundButton,
-                      (round.status !== 'active' || userAttempts.some(a => a.round_id === round.id)) && styles.roundButtonDisabled,
-                      round.status === 'completed' && styles.roundButtonCompleted,
-                    ]}
-                    onPress={() => handleStartRound(round.id)}
-                    disabled={round.status !== 'active' || userAttempts.some(a => a.round_id === round.id)}
-                  >
-                    <Text style={styles.roundButtonText}>
-                      {round.status === 'completed' ? 'Review' :
-                       round.status === 'active' ? (userAttempts.some(a => a.round_id === round.id) ? 'Waiting...' : 'Play') : 'Locked'}
-                    </Text>
-                  </TouchableOpacity>
+
+                  <View style={styles.roundBody}>
+                    <Text style={styles.roundIcon}>❓</Text>
+                    <View style={styles.roundInfo}>
+                      <Text style={styles.roundName}>{round.question_category}</Text>
+                      <Text style={styles.roundDesc}>Difficulty: {round.question_difficulty}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.roundButton,
+                        !canPlay && styles.roundButtonDisabled,
+                        round.status === 'completed' && styles.roundButtonCompleted,
+                      ]}
+                      onPress={() => handleStartRound(round.id)}
+                      disabled={!canPlay}
+                    >
+                      <Text style={styles.roundButtonText}>
+                        {round.status === 'completed' ? 'Review' :
+                         round.status === 'active' ? (hasSubmitted ? 'Waiting...' : 'Play') : 'Locked'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
 
           {allCompleted && (
@@ -221,33 +338,35 @@ export default function ArenaScreen() {
         </>
       )}
 
-      {/* Invite Modal */}
-      <Modal visible={inviteModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Invite Friends</Text>
+      {/* Invite Modal — Custom Arena only */}
+      {!isDaily && (
+        <Modal visible={inviteModalVisible} animationType="slide" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Invite Friends</Text>
 
-            <ScrollView style={styles.friendsList}>
-              {friends.length === 0 ? (
-                <Text style={styles.emptyText}>No friends to invite.</Text>
-              ) : (
-                friends.map(friend => (
-                  <View key={friend.friend_id} style={styles.friendRow}>
-                    <Text style={styles.friendName}>{friend.friend_username}</Text>
-                    <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(friend.friend_id)}>
-                      <Text style={styles.inviteButtonText}>Invite</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </ScrollView>
+              <ScrollView style={styles.friendsList}>
+                {friends.length === 0 ? (
+                  <Text style={styles.emptyText}>No friends to invite.</Text>
+                ) : (
+                  friends.map(friend => (
+                    <View key={friend.friend_id} style={styles.friendRow}>
+                      <Text style={styles.friendName}>{friend.friend_username}</Text>
+                      <TouchableOpacity style={styles.inviteButton} onPress={() => handleInvite(friend.friend_id)}>
+                        <Text style={styles.inviteButtonText}>Invite</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
 
-            <TouchableOpacity style={styles.closeModalButton} onPress={() => setInviteModalVisible(false)}>
-              <Text style={styles.closeModalText}>Done</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.closeModalButton} onPress={() => setInviteModalVisible(false)}>
+                <Text style={styles.closeModalText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
@@ -307,7 +426,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#1f1f3a',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   infoTitle: {
     color: '#fff',
@@ -324,6 +443,83 @@ const styles = StyleSheet.create({
     color: '#fdcb6e',
     fontWeight: 'bold',
     textTransform: 'uppercase',
+  },
+  dailyModeText: {
+    color: '#6c5ce7',
+    fontSize: 13,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  participantsCard: {
+    backgroundColor: '#121224',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1f1f3a',
+    marginBottom: 16,
+  },
+  participantsTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  pendingTitle: {
+    color: '#8888aa',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  emptyParticipant: {
+    color: '#8888aa',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  participantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a3a',
+  },
+  participantAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+  },
+  participantAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#2a2a5a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  participantAvatarText: {
+    color: '#818cf8',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  participantInfo: {
+    flex: 1,
+  },
+  participantName: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  participantStatus: {
+    color: '#00b894',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  participantStatusPending: {
+    color: '#fdcb6e',
+    fontSize: 12,
+    marginTop: 2,
   },
   progressContainer: {
     marginBottom: 24,
@@ -448,23 +644,6 @@ const styles = StyleSheet.create({
     color: '#0a0a1a',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  participantsList: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#2a2a5a',
-    paddingTop: 12,
-  },
-  participantsTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  participantName: {
-    color: '#ccc',
-    fontSize: 14,
-    marginBottom: 4,
   },
   hostActions: {
     flexDirection: 'row',

@@ -19,5 +19,8 @@ class ParticipantResponse(BaseModel):
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    # Profile fields (joined from profiles table)
+    username: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { getArenaRounds, submitAttempt } from '../../lib/api';
+import { getArenaRounds, submitAttempt, getArena } from '../../lib/api';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function PlayRoundScreen() {
   const { arenaId, roundId } = useLocalSearchParams<{ arenaId: string, roundId: string }>();
 
+  // ── All hooks declared unconditionally before any conditional return ──
+
   const [round, setRound] = useState<any>(null);
+  const [isDaily, setIsDaily] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +25,13 @@ export default function PlayRoundScreen() {
   const [result, setResult] = useState<any>(null); // For successful or terminal result
   const [transientFeedback, setTransientFeedback] = useState<string | null>(null); // For incorrect guess
   const [startTime] = useState(Date.now());
+
+  // Post-answer / next-round state — declared here, NOT after early returns
+  const [waitingForNextRound, setWaitingForNextRound] = useState(false);
+  const [nextRoundId, setNextRoundId] = useState<string | null>(null);
+  const [isFinalRound, setIsFinalRound] = useState(false);
+
+  // ── Effects ──
 
   useEffect(() => {
     if (arenaId && roundId) {
@@ -49,17 +59,67 @@ export default function PlayRoundScreen() {
     return () => clearInterval(interval);
   }, [round, result, isTimeUp]);
 
+  // Polling effect for next-round advancement — must be here, before any return
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (result || isTimeUp) {
+      setWaitingForNextRound(true);
+      const pollRounds = async () => {
+        try {
+          const roundsData = await getArenaRounds(arenaId);
+          const currentRoundIndex = roundsData.findIndex((r: any) => r.id === roundId);
+          if (currentRoundIndex !== -1) {
+            const isFinal = currentRoundIndex === roundsData.length - 1;
+            if (isFinal) {
+              const thisRound = roundsData[currentRoundIndex];
+              if (thisRound.status === 'completed') {
+                setIsFinalRound(true);
+                setWaitingForNextRound(false);
+                clearInterval(interval);
+              } else if (isDaily) {
+                // Daily Arena: don't wait for server to mark round completed — go to results
+                setIsFinalRound(true);
+                setWaitingForNextRound(false);
+                clearInterval(interval);
+              }
+            } else {
+              const nextRnd = roundsData[currentRoundIndex + 1];
+              if (nextRnd.status === 'active') {
+                setNextRoundId(nextRnd.id);
+                setWaitingForNextRound(false);
+                clearInterval(interval);
+              } else if (isDaily) {
+                // Daily Arena: the next round activates server-side when this one completes.
+                // For solo play, keep polling until it activates.
+              }
+            }
+          }
+        } catch (e) { }
+      };
+      pollRounds();
+      interval = setInterval(pollRounds, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [result, isTimeUp, arenaId, roundId, isDaily]);
+
+  // ── Handlers ──
+
   const loadRound = async () => {
     try {
       setLoading(true);
       setError(null);
-      const roundsData = await getArenaRounds(arenaId);
+      const [roundsData, arenaData] = await Promise.all([
+        getArenaRounds(arenaId),
+        getArena(arenaId),
+      ]);
       const currentRound = roundsData.find((r: any) => r.id === roundId);
-      if (!currentRound) throw new Error("Round not found");
+      if (!currentRound) throw new Error('Round not found');
       setRound(currentRound);
-
+      // Detect Daily Arena mode from arena metadata
+      const daily = arenaData?.category === 'daily' || arenaData?.metadata?.type === 'daily';
+      setIsDaily(daily);
       if (currentRound.status === 'completed') {
-        setError("This round is already completed.");
+        setError('This round is already completed.');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load round details');
@@ -101,60 +161,7 @@ export default function PlayRoundScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6c5ce7" />
-      </View>
-    );
-  }
-
-  if (error && !round) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const [waitingForNextRound, setWaitingForNextRound] = useState(false);
-  const [nextRoundId, setNextRoundId] = useState<string | null>(null);
-  const [isFinalRound, setIsFinalRound] = useState(false);
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (result || isTimeUp) {
-      setWaitingForNextRound(true);
-      const pollRounds = async () => {
-        try {
-          const roundsData = await getArenaRounds(arenaId);
-          const currentRoundIndex = roundsData.findIndex((r: any) => r.id === roundId);
-          if (currentRoundIndex !== -1) {
-            if (currentRoundIndex === roundsData.length - 1) {
-              if (roundsData[currentRoundIndex].status === 'completed') {
-                 setIsFinalRound(true);
-                 setWaitingForNextRound(false);
-                 clearInterval(interval);
-              }
-            } else {
-              const nextRnd = roundsData[currentRoundIndex + 1];
-              if (nextRnd.status === 'active') {
-                setNextRoundId(nextRnd.id);
-                setWaitingForNextRound(false);
-                clearInterval(interval);
-              }
-            }
-          }
-        } catch (e) { }
-      };
-      pollRounds();
-      interval = setInterval(pollRounds, 3000);
-    }
-    return () => clearInterval(interval);
-  }, [result, isTimeUp, arenaId, roundId]);
+  // ── Non-hook helpers (not hooks — safe to place before conditional returns) ──
 
   const handleNextAction = () => {
     if (isFinalRound) {
@@ -174,7 +181,9 @@ export default function PlayRoundScreen() {
         {waitingForNextRound ? (
           <View style={styles.waitingContainer}>
             <ActivityIndicator color="#818cf8" style={{ marginBottom: 12 }} />
-            <Text style={styles.waitingText}>Waiting for other players...</Text>
+            <Text style={styles.waitingText}>
+              {isDaily ? 'Loading next round...' : 'Waiting for other players...'}
+            </Text>
           </View>
         ) : (
           <TouchableOpacity style={styles.continueButton} onPress={handleNextAction}>
@@ -186,6 +195,27 @@ export default function PlayRoundScreen() {
       </View>
     </View>
   );
+
+  // ── Conditional renders (ALL hooks are above this line) ──
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#6c5ce7" />
+      </View>
+    );
+  }
+
+  if (error && !round) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (result) {
     const points = result.points_awarded || 0;

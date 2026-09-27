@@ -24,31 +24,51 @@ const withTimeout = <T,>(promise: PromiseLike<T> | Promise<T>, ms: number, desc:
 export default function CallbackScreen() {
   const params = useLocalSearchParams();
   const url = Linking.useURL();
-  
+
   const [error, setError] = useState<string | null>(null);
   const [statusText, setStatusText] = useState('Authenticating...');
   const [logs, setLogs] = useState<string[]>([]);
-  
+
+  // processedRef tracks the event ID so duplicate callbacks are discarded
   const processedRef = useRef<string | null>(null);
+  // processingRef prevents concurrent executions even before processedRef is set
+  const processingRef = useRef(false);
+  // Track whether valid OAuth params have ever arrived (to detect stuck-loading)
+  const receivedParamsRef = useRef(false);
+  // Startup timeout: if no valid params arrive within 20s, show error instead of infinite spinner
+  const startupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const addLog = (msg: string) => {
     console.log(`[Callback] ${msg}`);
     setLogs((prev) => [...prev, msg]);
   };
 
+  // Startup watchdog — cancelled as soon as valid params arrive
+  useEffect(() => {
+    startupTimeoutRef.current = setTimeout(() => {
+      if (!receivedParamsRef.current) {
+        addLog('TIMEOUT: No OAuth parameters received within 20 seconds.');
+        setError('Authentication timed out. Please try signing in again.');
+      }
+    }, 20000);
+    return () => {
+      if (startupTimeoutRef.current) clearTimeout(startupTimeoutRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     async function handleAuth() {
       // Determine the authoritative params
       let finalParams: Record<string, string> = {};
-      
+
       // 1. First, check Expo Router params
       if (params.code || params.access_token || params.error) {
         Object.entries(params).forEach(([k, v]) => {
           if (typeof v === 'string') finalParams[k] = v;
           else if (Array.isArray(v) && v.length > 0) finalParams[k] = v[0];
         });
-      } 
-      // 2. Fallback to parsing raw URL if router params are empty
+      }
+      // 2. Fallback to parsing raw URL from Linking.useURL() (warm start / foreground)
       else if (url) {
         const parsed = Linking.parse(url as string);
         if (parsed.queryParams) {
@@ -64,8 +84,31 @@ export default function CallbackScreen() {
             finalParams[key] = val;
           });
         }
-      } else {
-        return;
+      }
+      // 3. Cold-start fallback: Linking.getInitialURL() is the imperative call that
+      //    resolves the URL which launched the app even when useURL() is still null.
+      //    This is the primary fix for new Gmail accounts on a cold start.
+      else {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          const parsed = Linking.parse(initialUrl);
+          if (parsed.queryParams) {
+            Object.entries(parsed.queryParams).forEach(([k, v]) => {
+              if (typeof v === 'string') finalParams[k] = v;
+              else if (Array.isArray(v) && v.length > 0) finalParams[k] = v[0];
+            });
+          }
+          const hash = initialUrl.split('#')[1];
+          if (hash) {
+            const hashParams = new URLSearchParams(hash);
+            hashParams.forEach((val, key) => {
+              finalParams[key] = val;
+            });
+          }
+        } else {
+          // No URL from any source yet — wait for next render (useURL will re-trigger)
+          return;
+        }
       }
 
       const { code, access_token, refresh_token, error: urlError, error_description } = finalParams;
@@ -75,15 +118,30 @@ export default function CallbackScreen() {
         return;
       }
 
+      // Cancel the startup watchdog — valid OAuth params received
+      receivedParamsRef.current = true;
+      if (startupTimeoutRef.current) {
+        clearTimeout(startupTimeoutRef.current);
+        startupTimeoutRef.current = null;
+      }
+
+      // Guard: skip if already processed or currently being processed
       if (processedRef.current === eventId) {
-        addLog('Duplicate callback event ignored.');
+        addLog('Duplicate callback event ignored (already processed).');
         return;
       }
+      if (processingRef.current) {
+        addLog('Duplicate callback event ignored (processing in progress).');
+        return;
+      }
+
+      // Mark as in-flight immediately before any await
+      processingRef.current = true;
       processedRef.current = eventId;
 
       try {
         addLog('1. Callback parameters received');
-        
+
         if (urlError) {
           addLog(`Error in URL parameters: ${error_description || urlError}`);
           setError(error_description || urlError as string);
@@ -96,13 +154,13 @@ export default function CallbackScreen() {
           addLog('2. Code detected (PKCE flow)');
           setStatusText('Signing you in...');
           addLog('3. Starting exchangeCodeForSession');
-          
+
           const result = await withTimeout(
             supabase.auth.exchangeCodeForSession(code as string),
             15000,
             'exchangeCodeForSession'
           );
-          
+
           addLog('4. exchangeCodeForSession completed');
           sessionError = result.error;
           if (!result.error && !result.data?.session) {
@@ -112,16 +170,16 @@ export default function CallbackScreen() {
           addLog('2. Access token detected (Implicit flow)');
           setStatusText('Confirming your email...');
           addLog('3. Starting setSession');
-          
+
           const result = await withTimeout(
-            supabase.auth.setSession({ 
-              access_token: access_token as string, 
-              refresh_token: refresh_token as string 
+            supabase.auth.setSession({
+              access_token: access_token as string,
+              refresh_token: refresh_token as string
             }),
             15000,
             'setSession'
           );
-          
+
           addLog('4. setSession completed');
           sessionError = result.error;
         }
@@ -180,13 +238,16 @@ export default function CallbackScreen() {
           addLog('Routing to Home /(tabs)');
           router.replace('/(tabs)');
         } else {
-          addLog('Routing to Onboarding /auth/onboarding/profile-setup');
+          // New user or existing user without a username — route to profile setup
+          addLog('No username found — routing new user to /auth/onboarding/profile-setup');
           router.replace('/auth/onboarding/profile-setup');
         }
 
       } catch (e: any) {
         addLog(`EXCEPTION: ${e.message}`);
         setError(e.message);
+      } finally {
+        processingRef.current = false;
       }
     }
 
@@ -198,8 +259,8 @@ export default function CallbackScreen() {
       {error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Error: {error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
+          <TouchableOpacity
+            style={styles.retryButton}
             onPress={() => router.replace('/welcome' as any)}
           >
             <Text style={styles.retryButtonText}>Return to Welcome</Text>

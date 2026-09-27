@@ -81,6 +81,29 @@ export default function HomeScreen() {
         try {
             setDailyArenaLoading(true);
             const arena = await api.getDailyArena();
+
+            // The backend always returns the Daily Arena already active with Round 1 active.
+            // Navigate directly to the active round for a seamless solo play experience.
+            // Only fall back to the lobby if somehow there is no active round yet.
+            if (arena.status === 'active') {
+                const rounds = await api.getArenaRounds(arena.id);
+                const activeRound = rounds.find((r: any) => r.status === 'active');
+                if (activeRound) {
+                    router.push({
+                        pathname: '/arena/play',
+                        params: { arenaId: arena.id, roundId: activeRound.id }
+                    } as any);
+                    return;
+                }
+                // All rounds completed — go to results
+                const allDone = rounds.length > 0 && rounds.every((r: any) => r.status === 'completed');
+                if (allDone) {
+                    router.push(`/arena/results?arenaId=${arena.id}` as any);
+                    return;
+                }
+            }
+
+            // Fallback: show the lobby (handles pending state or unknown round state)
             router.push(`/arena/${arena.id}` as any);
         } catch (e: any) {
             Alert.alert('Error', e.message || 'Failed to load Daily Arena');

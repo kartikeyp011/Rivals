@@ -64,7 +64,7 @@ class ArenaService:
     async def get_or_create_daily_arena(self, user_id: str) -> ArenaResponse:
         now = datetime.now(timezone.utc)
         daily_date = now.strftime('%Y-%m-%d')
-        
+
         # We need a transaction-level advisory lock
         import hashlib
         hash_str = f"{user_id}_{daily_date}"
@@ -73,48 +73,49 @@ class ArenaService:
         async with self.conn.transaction():
             # Acquire transaction-level lock (waits until available)
             await self.conn.execute("SELECT pg_advisory_xact_lock($1)", lock_id)
-            
-            # Re-query
+
+            # Re-query: look for this user's daily arena for today
             row = await self.conn.fetchrow(
                 """
-                SELECT id FROM arenas 
-                WHERE host_user_id = $1 
+                SELECT id FROM arenas
+                WHERE host_user_id = $1
                 AND category = 'daily'
                 AND metadata->>'date' = $2
+                AND status NOT IN ('cancelled')
                 """,
                 UUID(user_id), daily_date
             )
-            
+
             if row:
-                return await self.get_arena(row['id'], user_id)
-                
+                return await self.arena_repo.get_arena(row['id'])
+
             # Get 3 questions deterministically for this date
             questions = await self.conn.fetch(
                 """
-                SELECT id, category, difficulty 
-                FROM questions 
-                WHERE is_active = true 
+                SELECT id, category, difficulty
+                FROM questions
+                WHERE is_active = true
                 ORDER BY md5($1 || id::text)
                 LIMIT 3
                 """,
                 daily_date
             )
-            
+
             if len(questions) < 3:
                 raise ConflictError("Not enough questions available for the Daily Arena")
-                
-            # Create the arena
+
+            # Daily Arena: single-player, immediately active, max_participants=1
             data = ArenaCreate(
                 category='daily',
-                max_participants=2,
+                max_participants=2,  # schema min is 2; we use metadata to identify as daily
                 max_rounds=3,
                 time_limit_seconds=60,
                 metadata={'type': 'daily', 'date': daily_date}
             )
-            
+
             arena = await self.arena_repo.create_arena(user_id, data)
             await self.participant_repo.create_participant(arena.id, user_id, status='active')
-            
+
             for round_num, q in enumerate(questions, start=1):
                 await self.conn.execute(
                     """
@@ -123,8 +124,29 @@ class ArenaService:
                     """,
                     arena.id, round_num, q['id']
                 )
-                
-            return await self.get_arena(arena.id, user_id)
+
+            # Immediately start the Daily Arena (no need to wait for other players)
+            updated = await self.arena_repo.update_arena_status(arena.id, 'active', start_time=now)
+
+            # Activate Round 1
+            rounds = await self.round_repo.get_rounds_for_arena(arena.id)
+            first_round = next((r for r in rounds if r.round_number == 1), None)
+            if first_round:
+                from datetime import timedelta
+                ends_at = now + timedelta(seconds=60)
+                await self.round_repo.update_round_status(
+                    first_round.id, 'active', start_time=now, ends_at=ends_at, complete_time=None
+                )
+                # Pre-create attempt for the user (no other participants)
+                from app.repositories.attempt_repository import AttemptRepository
+                attempt_repo = AttemptRepository(self.conn)
+                await attempt_repo.create_attempt(arena.id, first_round.id, user_id)
+
+                import asyncio
+                from app.routers.arenas import schedule_round_timeout
+                asyncio.create_task(schedule_round_timeout(arena.id, first_round.id, ends_at))
+
+            return updated
 
     async def get_arena(self, arena_id: UUID, user_id: str) -> ArenaResponse:
         arena = await self.arena_repo.get_arena(arena_id)
@@ -152,9 +174,12 @@ class ArenaService:
         if arena.status != 'pending':
             raise ConflictError("Arena is not in pending state")
 
+        # Check if this is a Daily Arena — daily arenas are solo and don't require 2 participants
+        is_daily = arena.category == 'daily' or (arena.metadata and arena.metadata.get('type') == 'daily')
+
         participants = await self.participant_repo.get_participants_for_arena(arena_id)
         joined_participants = [p for p in participants if p.status == 'active']
-        if len(joined_participants) < 2:
+        if not is_daily and len(joined_participants) < 2:
             raise ConflictError("At least 2 joined participants are required to start")
 
         async with self.conn.transaction():

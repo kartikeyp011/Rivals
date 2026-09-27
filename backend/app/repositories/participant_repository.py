@@ -41,9 +41,13 @@ class ParticipantRepository(BaseRepository):
     async def get_participants_for_arena(self, arena_id: UUID) -> List[ParticipantResponse]:
         rows = await self.conn.fetch(
             """
-            SELECT * FROM arena_participants
-            WHERE arena_id = $1
-            ORDER BY joined_at ASC NULLS LAST
+            SELECT ap.*,
+                   p.username,
+                   p.avatar_url
+            FROM arena_participants ap
+            LEFT JOIN profiles p ON p.id::text = ap.user_id
+            WHERE ap.arena_id = $1
+            ORDER BY ap.joined_at ASC NULLS LAST
             """,
             str(arena_id)
         )
