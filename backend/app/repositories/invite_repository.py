@@ -42,9 +42,20 @@ class InviteRepository(BaseRepository):
         rows = await self.conn.fetch(
             """
             SELECT * FROM arena_invites
-            WHERE invitee_id = $1 OR inviter_id = $1
+            WHERE invitee_id = $1
             ORDER BY created_at DESC
             """,
             user_id
+        )
+        return [InviteResponse(**dict(r)) for r in rows]
+
+    async def get_invites_for_arena(self, arena_id: UUID) -> List[InviteResponse]:
+        rows = await self.conn.fetch(
+            """
+            SELECT * FROM arena_invites
+            WHERE arena_id = $1
+            ORDER BY created_at DESC
+            """,
+            str(arena_id)
         )
         return [InviteResponse(**dict(r)) for r in rows]

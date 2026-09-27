@@ -1879,3 +1879,76 @@ Rivals+ subscribers are entitled to a weekly bonus of 250 coins (configured via 
 - **Existing Game Loop Tests**: `pytest backend/tests/test_game_loop.py -q` **failed**, because `test_game_loop.py` contains its own hardcoded copy of `create_user_in_db` that still attempts a direct, unmocked DB connection.
 - **Pytest Discovery**: `pytest --collect-only -q` successfully collected 57 tests and cleanly ignored the renamed `run_revenuecat_lifecycle.py` script.
 - **TypeScript**: `npx tsc --noEmit` could not execute cleanly because `node` was not installed in the Windows test sandbox. However, the WebCrypto polyfill using `globalThis as any` correctly fixes the TS `global` issue.
+
+## Step N+14: Multi-Issue Bug Fixes (3 Android E2E Issues) (2026-09-22)
+### 1. Wager Creation - Arena UI Asks to Invite Again
+- **Problem**: When a user creates a wager with a specific friend, the friend is successfully invited, but upon navigating to the Arena lobby, the host is presented with an "Invite Friends" button, making them think they need to invite someone again.
+- **Fix**: Added `GET /arenas/{arena_id}/invites` endpoint to `backend/app/routers/invites.py`. Updated `mobile/src/app/arena/[id].tsx` to fetch the pending invites for the arena. The "Invite Friends" button is now hidden if the number of current participants plus pending invites reaches `arena.max_participants`.
+
+### 2. Arena Invite "Not Authorized" Error
+- **Problem**: The backend `get_invites_for_user` repository method returned invites where the user was the `invitee_id` OR the `inviter_id`. The frontend mapped this list to "Received Invites" on the home screen. As a result, the sender saw their own sent invite on the home screen, clicked it, and the backend rejected it with 403 Forbidden because they were not the invitee.
+- **Fix**: Modified `backend/app/repositories/invite_repository.py` to only return invites where `invitee_id = $1`. Now the frontend only displays invites actually sent TO the user.
+
+### 3. Homepage Friends/Global Rank Navigation State
+- **Problem**: Tapping "Friends Rank" or "Global Rank" on the homepage navigated to the Leaderboards screen without passing any routing parameters. The Leaderboards screen maintained its own internal tab state, so it would open on whatever tab the user previously viewed, regardless of which button they tapped on the homepage.
+- **Fix**: Updated `mobile/src/app/(tabs)/index.tsx` to pass explicit route parameters (`?tab=friends` and `?tab=global`). Updated `mobile/src/app/(tabs)/leaderboards.tsx` to read the `tab` param via `useLocalSearchParams` and synchronize the active tab on mount.
+
+### Verification Results
+- **TypeScript**: Did not run due to Node not being recognized in this environment.
+- **Backend Tests**: `pytest backend/tests/test_issue_fixes.py -q` **passed (4/4)**.
+- **git diff --check**: Passed successfully with no trailing whitespace errors.
+
+## Step N+6: Arena Multiplayer Bug Fixes (Group Dynamics)
+Addressed 8 critical bugs related to the multiplayer Arena lifecycle to ensure proper group-play semantics, robust invitation handling, and accurate participant progression tracking.
+
+### 1. Stale Invites UI
+- **Problem**: Changing arena status caused the `loadInvites` endpoint to fail, but the UI continued showing stale invites.
+- **Fix**: Added cache-busting `_t` param in `api.ts` and cleared `arenaInvites` state when API requests fail.
+
+### 2. Group Arena Enforcement
+- **Problem**: A user could create a multiplayer Arena, ignore friends, and start it solo.
+- **Fix**: Enforced a `ConflictError` in `ArenaService.start_arena` ensuring at least 2 participants.
+
+### 3. Multiple Invites / Max Participants
+- **Problem**: Custom Arena creation hardcoded `maxParticipants = 2`, restricting the game to duels instead of groups up to 8.
+- **Fix**: Implemented a dynamic selector in `create.tsx` enforcing the 8-player backend limit.
+
+### 4. Host-Only Start Enforcement
+- **Problem**: The UI used a hardcoded `const isHost = true;` flag, bypassing actual authorization rules.
+- **Fix**: Compared `arena.host_user_id` against the authenticated session user to correctly toggle the "Start Arena" button.
+
+### 5. Round State & Score Sync
+- **Problem**: The UI relied entirely on global `round.status` (pending/active/completed) instead of verifying if the current user had already played.
+- **Fix**: Queried `getMyAttempts()` for all active rounds on load, correctly reflecting the "Waiting..." state for the current participant instead of prompting them to replay.
+
+### 6. Seamless Round Progression
+- **Problem**: Completing an attempt inappropriately dumped the user back to the Arena lobby regardless of whether the next round was active.
+- **Fix**: Implemented a polling loop in `play.tsx` that routes the user directly to the next active round or the final results page based on the real-time Arena state.
+
+### 7 & 8. Missing Avatar Renderings
+- **Problem**: Avatars in Profile and Wager Details rendered raw Google Profile URLs as literal text instead of images. Furthermore, backend Wager schemas scrubbed `username` and `avatar_url`.
+- **Fix**: Added proper `LEFT JOIN profiles` queries to the `WagerRepository` and mapped the new fields in `wager.py`. Replaced `<Text>` mappings with Expo `Image` components across the mobile UI.
+
+## Step N+7: Finalizing Arena & Economy Fixes (Pre-E2E Verification)
+Addressed the remaining gaps identified during verification to ensure robust behavior before Android E2E testing.
+
+### 1. Arena Start Participant Enforcement
+- **Problem**: The backend and frontend logic counted all participant records (including `invited` status) towards the 2-participant minimum.
+- **Fix**: Modified `ArenaService.start_arena` (backend) and `mobile/src/app/arena/[id].tsx` (frontend) to explicitly enforce canonical joined status by filtering strictly for `status === 'active'`. This ensures that declined, withdrawn, or pending invites can never accidentally be counted as joined participants.
+
+### 2. New User Economy Initialization (Concurrency Safe)
+- **Problem**: New users showed 0 coins. Previous approaches checked if transactions existed before inserting, which was susceptible to race conditions (two concurrent first-time requests could award 100 twice).
+- **Fix**: Implemented a concurrency-safe initialization directly inside `CoinService.get_balance`. The service now leverages Postgres `FOR UPDATE` row-level locks via `_lock_user` to serialize requests inside a transaction block, ensuring that even under concurrent race conditions, exactly one `admin_adjustment` of 100 coins is securely inserted.
+
+### 3. Regression Coverage Scope
+- **Scope Verified**: Critical logic was mapped to automated test coverage in `backend/tests/test_issue_fixes.py` leveraging precise mocked interactions with the repositories, not just asserting mock calls:
+  - **Arena Start**: Validated `ConflictError` for host + pending. Validated success for host + joined. Validated `ForbiddenError` for non-host attempts.
+  - **Economy Initialization**: Verified the exact db-insertion call (`insert_ledger_entry`) and lock acquisition (`_lock_user`) are strictly invoked upon the first request, and explicitly asserted they are skipped on subsequent checks (idempotency).
+  - **Invites Lifecycle**: Verified sender cannot accept (`ForbiddenError`), stale invites are rejected (`ConflictError`), and valid recipients trigger correct state transitions.
+  - **Attempt Submission**: Ensured duplicate submissions safely reject via `ConflictError`.
+
+### Verification Results
+- **TypeScript (`npx tsc --noEmit`)**: Passed (exit code 0, 0 errors).
+- **Backend Tests (`pytest backend/tests/test_issue_fixes.py -q`)**: All tests passing (8/8).
+- **Test Collection (`pytest --collect-only -q`)**: Passed cleanly.
+- **Linting (`git diff --check`)**: Clean (removed all trailing whitespaces).

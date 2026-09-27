@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import * as api from '@/lib/api';
 
@@ -23,6 +23,14 @@ export default function LeaderboardsScreen() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const { tab } = useLocalSearchParams<{ tab: string }>();
+
+  useEffect(() => {
+    if (tab === 'friends' || tab === 'global') {
+      setActiveTab(tab as LeaderboardType);
+    }
+  }, [tab]);
 
   const loadData = async () => {
     setRefreshing(true);

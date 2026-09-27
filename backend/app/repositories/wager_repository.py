@@ -103,7 +103,12 @@ class WagerRepository:
         wager_dict = dict(wager_row)
         
         participant_rows = await self.conn.fetch(
-            "SELECT * FROM wager_participants WHERE wager_id = $1 ORDER BY joined_at ASC",
+            """
+            SELECT wp.*, p.username, p.avatar_url
+            FROM wager_participants wp
+            LEFT JOIN profiles p ON wp.user_id = p.id
+            WHERE wp.wager_id = $1 ORDER BY wp.joined_at ASC
+            """,
             wager_dict['id']
         )
         

@@ -152,6 +152,11 @@ class ArenaService:
         if arena.status != 'pending':
             raise ConflictError("Arena is not in pending state")
 
+        participants = await self.participant_repo.get_participants_for_arena(arena_id)
+        joined_participants = [p for p in participants if p.status == 'active']
+        if len(joined_participants) < 2:
+            raise ConflictError("At least 2 joined participants are required to start")
+
         async with self.conn.transaction():
             from datetime import datetime, timezone
             now = datetime.now(timezone.utc)

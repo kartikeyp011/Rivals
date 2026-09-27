@@ -7,13 +7,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function PlayRoundScreen() {
   const { arenaId, roundId } = useLocalSearchParams<{ arenaId: string, roundId: string }>();
-  
+
   const [round, setRound] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  
+
   // Timer state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isTimeUp, setIsTimeUp] = useState(false);
@@ -33,7 +33,7 @@ export default function PlayRoundScreen() {
     let interval: ReturnType<typeof setInterval>;
     if (round && round.ends_at && !result && !isTimeUp) {
       const endsAtMs = new Date(round.ends_at).getTime();
-      
+
       const updateTimer = () => {
         const remaining = Math.max(0, Math.floor((endsAtMs - Date.now()) / 1000));
         setTimeLeft(remaining);
@@ -42,7 +42,7 @@ export default function PlayRoundScreen() {
           clearInterval(interval);
         }
       };
-      
+
       updateTimer();
       interval = setInterval(updateTimer, 1000);
     }
@@ -57,7 +57,7 @@ export default function PlayRoundScreen() {
       const currentRound = roundsData.find((r: any) => r.id === roundId);
       if (!currentRound) throw new Error("Round not found");
       setRound(currentRound);
-      
+
       if (currentRound.status === 'completed') {
         setError("This round is already completed.");
       }
@@ -74,12 +74,12 @@ export default function PlayRoundScreen() {
       setSubmitting(true);
       setError(null);
       setTransientFeedback(null);
-      
+
       const responseMs = Date.now() - startTime;
       const idempotencyKey = uuidv4();
-      
+
       const attemptRes = await submitAttempt(arenaId, roundId, selected, responseMs, idempotencyKey);
-      
+
       if (attemptRes.is_correct || attemptRes.status === 'submitted') {
         setResult(attemptRes);
       } else if (attemptRes.status === 'timed_out' || attemptRes.status === 'void') {
@@ -120,37 +120,90 @@ export default function PlayRoundScreen() {
     );
   }
 
+  const [waitingForNextRound, setWaitingForNextRound] = useState(false);
+  const [nextRoundId, setNextRoundId] = useState<string | null>(null);
+  const [isFinalRound, setIsFinalRound] = useState(false);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (result || isTimeUp) {
+      setWaitingForNextRound(true);
+      const pollRounds = async () => {
+        try {
+          const roundsData = await getArenaRounds(arenaId);
+          const currentRoundIndex = roundsData.findIndex((r: any) => r.id === roundId);
+          if (currentRoundIndex !== -1) {
+            if (currentRoundIndex === roundsData.length - 1) {
+              if (roundsData[currentRoundIndex].status === 'completed') {
+                 setIsFinalRound(true);
+                 setWaitingForNextRound(false);
+                 clearInterval(interval);
+              }
+            } else {
+              const nextRnd = roundsData[currentRoundIndex + 1];
+              if (nextRnd.status === 'active') {
+                setNextRoundId(nextRnd.id);
+                setWaitingForNextRound(false);
+                clearInterval(interval);
+              }
+            }
+          }
+        } catch (e) { }
+      };
+      pollRounds();
+      interval = setInterval(pollRounds, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [result, isTimeUp, arenaId, roundId]);
+
+  const handleNextAction = () => {
+    if (isFinalRound) {
+      router.replace(`/arena/results?arenaId=${arenaId}` as any);
+    } else if (nextRoundId) {
+      router.replace({ pathname: '/arena/play', params: { arenaId, roundId: nextRoundId } } as any);
+    }
+  };
+
+  const renderOutcome = (emoji: string, title: string, text: string, colorStyle: any) => (
+    <View style={styles.container}>
+      <View style={styles.resultContainer}>
+        <Text style={styles.resultEmoji}>{emoji}</Text>
+        <Text style={[styles.resultText, colorStyle]}>{title}</Text>
+        <Text style={styles.resultSubtext}>{text}</Text>
+
+        {waitingForNextRound ? (
+          <View style={styles.waitingContainer}>
+            <ActivityIndicator color="#818cf8" style={{ marginBottom: 12 }} />
+            <Text style={styles.waitingText}>Waiting for other players...</Text>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.continueButton} onPress={handleNextAction}>
+            <Text style={styles.continueButtonText}>
+              {isFinalRound ? 'View Results →' : 'Next Round →'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
   if (result) {
     const points = result.points_awarded || 0;
     const isCorrect = result.is_correct;
-    return (
-      <View style={styles.container}>
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultEmoji}>{isCorrect ? '✅' : '❌'}</Text>
-          <Text style={[styles.resultText, isCorrect ? styles.correctText : styles.incorrectText]}>
-            {isCorrect ? 'Correct!' : 'Incorrect!'}
-          </Text>
-          <Text style={styles.resultSubtext}>+{points} points earned!</Text>
-          <TouchableOpacity style={styles.continueButton} onPress={() => router.replace(`/arena/${arenaId}` as any)}>
-            <Text style={styles.continueButtonText}>Return to Lobby →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    return renderOutcome(
+      isCorrect ? '✅' : '❌',
+      isCorrect ? 'Correct!' : 'Incorrect!',
+      `+${points} points earned!`,
+      isCorrect ? styles.correctText : styles.incorrectText
     );
   }
 
   if (isTimeUp) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultEmoji}>⏳</Text>
-          <Text style={[styles.resultText, styles.incorrectText]}>Time's Up!</Text>
-          <Text style={styles.resultSubtext}>You ran out of time for this round.</Text>
-          <TouchableOpacity style={styles.continueButton} onPress={() => router.replace(`/arena/${arenaId}` as any)}>
-            <Text style={styles.continueButtonText}>Return to Lobby →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    return renderOutcome(
+      '⏳',
+      "Time's Up!",
+      'You ran out of time for this round.',
+      styles.incorrectText
     );
   }
 
@@ -176,7 +229,7 @@ export default function PlayRoundScreen() {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-        
+
         {transientFeedback && (
           <View style={styles.transientFeedbackContainer}>
             <Text style={styles.transientFeedbackText}>{transientFeedback}</Text>
@@ -186,7 +239,7 @@ export default function PlayRoundScreen() {
         <View style={styles.puzzleCard}>
           <Text style={styles.roundLabel}>{round.question_category} • {round.question_difficulty}</Text>
           <Text style={styles.puzzleTitle}>{round.question_prompt}</Text>
-          
+
           <View style={styles.optionsContainer}>
             {round.question_options?.map((opt: any) => (
               <TouchableOpacity
@@ -204,7 +257,7 @@ export default function PlayRoundScreen() {
             ))}
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.submitButton, (!selected || submitting) && styles.submitButtonDisabled]}
             onPress={handleSubmit}
             disabled={!selected || submitting}
@@ -414,4 +467,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  waitingContainer: {
+    alignItems: 'center',
+    marginTop: 40,
+  },
+  waitingText: {
+    color: '#818cf8',
+    fontSize: 16,
+    fontWeight: 'bold',
+  }
 });

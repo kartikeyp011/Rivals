@@ -9,9 +9,9 @@ export default function CreateArenaScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [config, setConfig] = useState<any>(null);
-  
+
   // Selections
   const [category, setCategory] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<string | null>(null);
@@ -42,19 +42,19 @@ export default function CreateArenaScreen() {
     try {
       setSubmitting(true);
       setError(null);
-      
+
       const payload: any = {
         max_rounds: maxRounds,
         max_participants: maxParticipants,
         time_limit_seconds: timeLimit,
       };
-      
+
       if (category) payload.category = category;
       if (difficulty) payload.difficulty = difficulty;
-      
+
       const idempotencyKey = uuidv4();
       const arena = await createArena(payload, idempotencyKey);
-      
+
       // Navigate to arena lobby
       router.replace(`/arena/${arena.id}` as any);
     } catch (err: any) {
@@ -93,16 +93,16 @@ export default function CreateArenaScreen() {
           {/* Category */}
           <Text style={styles.label}>Category</Text>
           <View style={styles.optionsRow}>
-            <TouchableOpacity 
-              style={[styles.optionButton, !category && styles.optionSelected]} 
+            <TouchableOpacity
+              style={[styles.optionButton, !category && styles.optionSelected]}
               onPress={() => setCategory(null)}
             >
               <Text style={styles.optionText}>Any</Text>
             </TouchableOpacity>
             {config.categories?.map((cat: string) => (
-              <TouchableOpacity 
-                key={cat} 
-                style={[styles.optionButton, category === cat && styles.optionSelected]} 
+              <TouchableOpacity
+                key={cat}
+                style={[styles.optionButton, category === cat && styles.optionSelected]}
                 onPress={() => setCategory(cat)}
               >
                 <Text style={styles.optionText}>{cat}</Text>
@@ -113,16 +113,16 @@ export default function CreateArenaScreen() {
           {/* Difficulty */}
           <Text style={styles.label}>Difficulty</Text>
           <View style={styles.optionsRow}>
-            <TouchableOpacity 
-              style={[styles.optionButton, !difficulty && styles.optionSelected]} 
+            <TouchableOpacity
+              style={[styles.optionButton, !difficulty && styles.optionSelected]}
               onPress={() => setDifficulty(null)}
             >
               <Text style={styles.optionText}>Any</Text>
             </TouchableOpacity>
             {config.difficulties?.map((diff: string) => (
-              <TouchableOpacity 
-                key={diff} 
-                style={[styles.optionButton, difficulty === diff && styles.optionSelected]} 
+              <TouchableOpacity
+                key={diff}
+                style={[styles.optionButton, difficulty === diff && styles.optionSelected]}
                 onPress={() => setDifficulty(diff)}
               >
                 <Text style={styles.optionText}>{diff}</Text>
@@ -134,11 +134,26 @@ export default function CreateArenaScreen() {
           <Text style={styles.label}>Rounds: {maxRounds}</Text>
           <View style={styles.optionsRow}>
             {[1, 3, 5, 10].map(val => (
-              <TouchableOpacity 
-                key={val} 
-                style={[styles.optionButton, maxRounds === val && styles.optionSelected]} 
+              <TouchableOpacity
+                key={val}
+                style={[styles.optionButton, maxRounds === val && styles.optionSelected]}
                 onPress={() => setMaxRounds(val)}
                 disabled={val < config.max_rounds_min || val > config.max_rounds_max}
+              >
+                <Text style={styles.optionText}>{val}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Max Participants */}
+          <Text style={styles.label}>Max Participants: {maxParticipants}</Text>
+          <View style={styles.optionsRow}>
+            {[2, 3, 4, 5, 6, 7, 8].map(val => (
+              <TouchableOpacity
+                key={val}
+                style={[styles.optionButton, maxParticipants === val && styles.optionSelected]}
+                onPress={() => setMaxParticipants(val)}
+                disabled={config.max_participants_min ? val < config.max_participants_min : false}
               >
                 <Text style={styles.optionText}>{val}</Text>
               </TouchableOpacity>
@@ -149,9 +164,9 @@ export default function CreateArenaScreen() {
           <Text style={styles.label}>Time Limit: {timeLimit}s</Text>
           <View style={styles.optionsRow}>
             {[15, 30, 60, 120].map(val => (
-              <TouchableOpacity 
-                key={val} 
-                style={[styles.optionButton, timeLimit === val && styles.optionSelected]} 
+              <TouchableOpacity
+                key={val}
+                style={[styles.optionButton, timeLimit === val && styles.optionSelected]}
                 onPress={() => setTimeLimit(val)}
                 disabled={val < config.time_limit_seconds_min || val > config.time_limit_seconds_max}
               >
@@ -162,7 +177,7 @@ export default function CreateArenaScreen() {
         </View>
       )}
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
         onPress={handleCreate}
         disabled={submitting}

@@ -12,6 +12,23 @@ class CoinService:
         self.coin_repo = CoinRepository(conn)
 
     async def get_balance(self, user_id: str) -> int:
+        # Fast check without lock
+        txs = await self.coin_repo.get_transactions(user_id, 1)
+        if not txs:
+            async with self.conn.transaction():
+                # Acquire row lock to serialize concurrent first-time requests
+                await self._lock_user(user_id)
+                # Re-check under lock
+                txs = await self.coin_repo.get_transactions(user_id, 1)
+                if not txs:
+                    # Idempotent initialization
+                    await self.coin_repo.insert_ledger_entry(
+                        user_id=user_id,
+                        type=CoinLedgerType.credit,
+                        reason=CoinLedgerReason.admin_adjustment,
+                        amount=100,
+                        balance_after=100
+                    )
         return await self.coin_repo.get_balance(user_id)
 
     async def get_transactions(self, user_id: str, limit: int = 50) -> List[CoinLedgerResponse]:

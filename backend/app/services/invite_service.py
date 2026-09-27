@@ -43,6 +43,17 @@ class InviteService:
     async def get_invites_for_user(self, user_id: str) -> List[InviteResponse]:
         return await self.invite_repo.get_invites_for_user(user_id)
 
+    async def get_invites_for_arena(self, arena_id: UUID, user_id: str) -> List[InviteResponse]:
+        arena = await self.arena_repo.get_arena(arena_id)
+        if not arena:
+            raise NotFoundError("Arena not found")
+        # Ensure user is host or participant
+        if arena.host_user_id != UUID(user_id):
+            participant = await self.participant_repo.get_participant(arena_id, user_id)
+            if not participant:
+                raise ForbiddenError("Not authorized to view arena invites")
+        return await self.invite_repo.get_invites_for_arena(arena_id)
+
     async def respond_to_invite(self, invite_id: UUID, user_id: str, accept: bool) -> InviteResponse:
         invite = await self.invite_repo.get_invite(invite_id)
         if not invite:

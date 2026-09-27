@@ -1,24 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { getArena, getArenaRounds, startArena, getParticipants, getFriends, sendInvite } from '../../lib/api';
+import { getArena, getArenaRounds, startArena, getParticipants, getFriends, sendInvite, getArenaInvites, getMyAttempts } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function ArenaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  
+
   const [arena, setArena] = useState<any>(null);
   const [rounds, setRounds] = useState<any[]>([]);
   const [participants, setParticipants] = useState<any[]>([]);
+  const [arenaInvites, setArenaInvites] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userAttempts, setUserAttempts] = useState<any[]>([]);
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setCurrentUserId(data.user.id);
+      }
+    });
+
     if (id) {
       loadData();
       const interval = setInterval(loadData, 5000);
@@ -30,18 +40,25 @@ export default function ArenaScreen() {
     try {
       if (!arena) setLoading(true);
       setError(null);
-      
-      const [arenaData, roundsData, participantsData, friendsData] = await Promise.all([
+
+      const [arenaData, roundsData, participantsData, friendsData, invitesData] = await Promise.all([
         getArena(id),
         getArenaRounds(id),
         getParticipants(id),
-        getFriends().catch(() => [])
+        getFriends().catch(() => []),
+        getArenaInvites(id).catch(() => [])
       ]);
-      
+
+      const activeRounds = roundsData.filter((r: any) => r.status === 'active');
+      const attemptsPromises = activeRounds.map((r: any) => getMyAttempts(id, r.id).catch(() => []));
+      const attemptsResults = await Promise.all(attemptsPromises);
+
       setArena(arenaData);
       setRounds(roundsData.sort((a: any, b: any) => a.round_number - b.round_number));
       setParticipants(participantsData);
       setFriends(friendsData);
+      setArenaInvites(invitesData.filter((i: any) => i.status === 'pending'));
+      setUserAttempts(attemptsResults.flat());
     } catch (err: any) {
       setError(err.message || 'Failed to load arena details');
     } finally {
@@ -86,8 +103,8 @@ export default function ArenaScreen() {
     );
   }
 
-  // Determine host status ideally by checking session, but for now we rely on DB properties
-  const isHost = true; // Placeholder
+  // Determine host status
+  const isHost = currentUserId === arena?.host_user_id;
   const isPending = arena?.status === 'pending';
   const allCompleted = rounds.length > 0 && rounds.every(r => r.status === 'completed');
   const completedCount = rounds.filter(r => r.status === 'completed').length;
@@ -128,20 +145,24 @@ export default function ArenaScreen() {
 
           {isPending && (
             <View style={styles.hostActions}>
-              <TouchableOpacity 
-                style={[styles.startArenaButton, actionLoading && styles.disabledButton, { flex: 1, marginRight: 8 }]} 
-                onPress={handleStartArena}
-                disabled={actionLoading}
-              >
-                {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.startArenaButtonText}>Start Arena</Text>}
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.inviteArenaButton, { flex: 1, marginLeft: 8 }]} 
-                onPress={() => setInviteModalVisible(true)}
-              >
-                <Text style={styles.startArenaButtonText}>Invite Friends</Text>
-              </TouchableOpacity>
+              {isHost && (
+                <TouchableOpacity
+                  style={[styles.startArenaButton, (actionLoading || participants.filter(p => p.status === 'active').length < 2) && styles.disabledButton, { flex: 1, marginRight: 8 }]}
+                  onPress={handleStartArena}
+                  disabled={actionLoading || participants.filter(p => p.status === 'active').length < 2}
+                >
+                  {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.startArenaButtonText}>{participants.filter(p => p.status === 'active').length < 2 ? 'Waiting for players...' : 'Start Arena'}</Text>}
+                </TouchableOpacity>
+              )}
+
+              {participants.length + arenaInvites.length < arena.max_participants && (
+                <TouchableOpacity
+                  style={[styles.inviteArenaButton, { flex: 1, marginLeft: 8 }]}
+                  onPress={() => setInviteModalVisible(true)}
+                >
+                  <Text style={styles.startArenaButtonText}>Invite Friends</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -173,15 +194,15 @@ export default function ArenaScreen() {
                   <TouchableOpacity
                     style={[
                       styles.roundButton,
-                      round.status !== 'active' && styles.roundButtonDisabled,
+                      (round.status !== 'active' || userAttempts.some(a => a.round_id === round.id)) && styles.roundButtonDisabled,
                       round.status === 'completed' && styles.roundButtonCompleted,
                     ]}
                     onPress={() => handleStartRound(round.id)}
-                    disabled={round.status !== 'active'}
+                    disabled={round.status !== 'active' || userAttempts.some(a => a.round_id === round.id)}
                   >
                     <Text style={styles.roundButtonText}>
-                      {round.status === 'completed' ? 'Review' : 
-                       round.status === 'active' ? 'Play' : 'Locked'}
+                      {round.status === 'completed' ? 'Review' :
+                       round.status === 'active' ? (userAttempts.some(a => a.round_id === round.id) ? 'Waiting...' : 'Play') : 'Locked'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -205,7 +226,7 @@ export default function ArenaScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Invite Friends</Text>
-            
+
             <ScrollView style={styles.friendsList}>
               {friends.length === 0 ? (
                 <Text style={styles.emptyText}>No friends to invite.</Text>
@@ -220,7 +241,7 @@ export default function ArenaScreen() {
                 ))
               )}
             </ScrollView>
-            
+
             <TouchableOpacity style={styles.closeModalButton} onPress={() => setInviteModalVisible(false)}>
               <Text style={styles.closeModalText}>Done</Text>
             </TouchableOpacity>

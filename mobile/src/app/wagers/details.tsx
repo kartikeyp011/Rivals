@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as api from '@/lib/api';
 import 'react-native-get-random-values';
@@ -115,10 +115,14 @@ export default function WagerDetailsScreen() {
         <Text style={styles.sectionTitle}>Participants</Text>
         {wager.participants.map((p: any, idx: number) => (
           <View key={idx} style={styles.participantItem}>
-            <Text style={styles.participantAvatar}>👤</Text>
+            {p.avatar_url && p.avatar_url.startsWith('http') ? (
+              <Image source={{ uri: p.avatar_url }} style={styles.participantAvatarImg} />
+            ) : (
+              <Text style={styles.participantAvatar}>👤</Text>
+            )}
             <View style={styles.participantInfo}>
               <Text style={styles.participantName}>
-                Player {p.user_id.substring(0, 8)} {p.user_id === currentUserId && '(You)'}
+                {p.username ? `@${p.username}` : `Player ${p.user_id.substring(0, 8)}`} {p.user_id === currentUserId && '(You)'}
               </Text>
               <Text style={[styles.participantStatus, styles.statusAccepted]}>
                 ✅ Accepted
@@ -256,6 +260,12 @@ const styles = StyleSheet.create({
   },
   participantAvatar: {
     fontSize: 24,
+    marginRight: 12,
+  },
+  participantAvatarImg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 12,
   },
   participantInfo: {

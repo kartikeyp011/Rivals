@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform, Switch, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -207,7 +207,11 @@ export default function ProfileScreen() {
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>👤 Profile</Text>
             <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
+                {avatarUrl && avatarUrl.startsWith('http') ? (
+                    <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                ) : (
+                    <Text style={styles.avatarText}>{avatarUrl || '👤'}</Text>
+                )}
             </View>
             <Text style={styles.name}>{displayUsername}</Text>
 
@@ -317,6 +321,12 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#6c5ce7',
         marginBottom: 12,
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
     },
     avatarText: {
         fontSize: 40,

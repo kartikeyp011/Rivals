@@ -20,6 +20,14 @@ async def list_invites(
 ):
     return await service.get_invites_for_user(user_id)
 
+@router.get("/arenas/{arena_id}/invites", response_model=List[InviteResponse])
+async def list_arena_invites(
+    arena_id: uuid.UUID,
+    user_id: str = Depends(get_current_user),
+    service: InviteService = Depends(get_invite_service)
+):
+    return await service.get_invites_for_arena(arena_id, user_id)
+
 @router.post("/arenas/{arena_id}/invites", response_model=InviteResponse, status_code=201)
 async def create_invite(
     arena_id: uuid.UUID,

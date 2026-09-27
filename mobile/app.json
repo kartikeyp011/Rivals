@@ -50,7 +50,8 @@
           "image": "./assets/images/rivals-logo.png",
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,

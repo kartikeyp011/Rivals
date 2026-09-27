@@ -14,15 +14,15 @@ export async function getAuthHeaders(idempotencyKey?: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
+
   if (session?.access_token) {
     headers['Authorization'] = `Bearer ${session.access_token}`;
   }
-  
+
   if (idempotencyKey) {
     headers['Idempotency-Key'] = idempotencyKey;
   }
-  
+
   return headers;
 }
 
@@ -99,7 +99,7 @@ export async function getArenaRounds(arenaId: string) {
   return res.json();
 }
 
-// Note: startRound() from the plan is omitted because the backend automatically starts 
+// Note: startRound() from the plan is omitted because the backend automatically starts
 // the first round when start_arena is called, and subsequent rounds are handled server-side.
 
 // 6. Submit Attempt
@@ -117,6 +117,13 @@ export async function submitAttempt(arenaId: string, roundId: string, selectedOp
     const errorData = await res.json();
     throw new Error(errorData.error?.message || 'Failed to submit attempt');
   }
+  return res.json();
+}
+
+export async function getMyAttempts(arenaId: string, roundId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/rounds/${roundId}/attempts/me`, { headers });
+  if (!res.ok) throw new Error('Failed to fetch my attempts');
   return res.json();
 }
 
@@ -184,7 +191,10 @@ export async function searchUsers(q: string) {
 // 9. Invites API
 export async function getInvites() {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/v1/invites`, { headers });
+  const res = await fetch(`${API_BASE_URL}/api/v1/invites?_t=${Date.now()}`, {
+    headers: { ...headers, 'Cache-Control': 'no-cache' },
+    cache: 'no-store'
+  });
   if (!res.ok) throw new Error('Failed to fetch invites');
   return res.json();
 }
@@ -218,6 +228,16 @@ export async function respondToInvite(inviteId: string, accept: boolean, idempot
 }
 
 // 10. Participants API
+export async function getArenaInvites(arenaId: string) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/invites?_t=${Date.now()}`, {
+    headers: { ...headers, 'Cache-Control': 'no-cache' },
+    cache: 'no-store'
+  });
+  if (!res.ok) throw new Error('Failed to fetch arena invites');
+  return res.json();
+}
+
 export async function getParticipants(arenaId: string) {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/v1/arenas/${arenaId}/participants`, { headers });

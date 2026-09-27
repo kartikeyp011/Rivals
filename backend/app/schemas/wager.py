@@ -22,6 +22,8 @@ class WagerParticipantResponse(BaseModel):
     coins_won: Optional[int] = None
     joined_at: datetime
     created_at: datetime
+    username: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

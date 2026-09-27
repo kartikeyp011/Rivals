@@ -20,7 +20,7 @@ export default function HomeScreen() {
             const pending = data.filter((i: any) => i.status === 'pending');
             setInvites(pending);
         } catch (e) {
-            // Silently ignore or log
+            setInvites([]);
         }
     };
 
@@ -112,7 +112,7 @@ export default function HomeScreen() {
                 </View>
                 <TouchableOpacity 
                     style={styles.statCard}
-                    onPress={() => router.push('/(tabs)/leaderboards')}
+                    onPress={() => router.push({ pathname: '/(tabs)/leaderboards', params: { tab: 'friends' } } as any)}
                 >
                     <Text style={styles.statIcon}>🏅</Text>
                     <Text style={styles.statValue}>{friendsRank}</Text>
@@ -120,7 +120,7 @@ export default function HomeScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity 
                     style={styles.statCard}
-                    onPress={() => router.push('/(tabs)/leaderboards')}
+                    onPress={() => router.push({ pathname: '/(tabs)/leaderboards', params: { tab: 'global' } } as any)}
                 >
                     <Text style={styles.statIcon}>🌍</Text>
                     <Text style={styles.statValue}>{globalRank}</Text>
