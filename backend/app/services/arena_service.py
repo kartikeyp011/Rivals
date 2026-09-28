@@ -146,6 +146,7 @@ class ArenaService:
                 from app.routers.arenas import schedule_round_timeout
                 asyncio.create_task(schedule_round_timeout(arena.id, first_round.id, ends_at))
 
+            print(f"RETURNING updated: {updated}")
             return updated
 
     async def get_arena(self, arena_id: UUID, user_id: str) -> ArenaResponse:

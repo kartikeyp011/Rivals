@@ -19,7 +19,7 @@ class RoundRepository(BaseRepository):
             WHERE r.arena_id = $1
             ORDER BY r.round_number ASC
             """,
-            str(arena_id)
+            arena_id
         )
         import json
         out = []
@@ -44,7 +44,7 @@ class RoundRepository(BaseRepository):
             JOIN questions q ON r.question_id = q.id
             WHERE r.id = $1
             """,
-            str(round_id)
+            round_id
         )
         if row:
             d = dict(row)
@@ -59,7 +59,7 @@ class RoundRepository(BaseRepository):
                                   ends_at: Optional['datetime'] = None,
                                   complete_time: Optional['datetime'] = None) -> Optional[RoundResponse]:
         updates = ["status = $2"]
-        params = [str(round_id), status]
+        params = [round_id, status]
         idx = 3
         
         if start_time:
@@ -100,7 +100,7 @@ class RoundRepository(BaseRepository):
             JOIN questions q ON r.question_id = q.id
             WHERE r.id = $1
             """,
-            str(round_id)
+            round_id
         )
         if row:
             return row['correct_option']

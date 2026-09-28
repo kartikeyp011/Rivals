@@ -16,7 +16,7 @@ class ScoreRepository(BaseRepository):
                 bonus_points = EXCLUDED.bonus_points
             RETURNING *
             """,
-            str(arena_id), str(round_id), user_id, points_earned, bonus_points
+            arena_id, round_id, user_id, points_earned, bonus_points
         )
         return ScoreResponse(**dict(row))
 
@@ -27,7 +27,7 @@ class ScoreRepository(BaseRepository):
             WHERE arena_id = $1
             ORDER BY created_at DESC
             """,
-            str(arena_id)
+            arena_id
         )
         return [ScoreResponse(**dict(r)) for r in rows]
 

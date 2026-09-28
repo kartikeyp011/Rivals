@@ -27,7 +27,7 @@ def client():
         yield c
 
 async def create_user_in_db(user_id: str):
-    conn = await asyncpg.connect(settings.DATABASE_URL)
+    conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
     await conn.execute("""
         INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
         VALUES ('00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2, '', now(), now(), now(), '{}', '{}', now(), now(), '', '', '', '')
@@ -96,7 +96,7 @@ def test_unlimited_attempts_and_scoring(client, test_user_1, test_user_1_headers
     
     # We need the correct option. We can fetch it via db.
     async def get_correct_opt():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         row = await conn.fetchrow("SELECT correct_option FROM questions WHERE id = $1", rounds[0]["question_id"])
         await conn.close()
         return row["correct_option"]
@@ -119,7 +119,7 @@ def test_unlimited_attempts_and_scoring(client, test_user_1, test_user_1_headers
 
     # Verify no DB row duplication (user should still have exactly 1 attempt row)
     async def count_attempts():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         rows = await conn.fetch("SELECT * FROM arena_attempts WHERE round_id = $1 AND user_id = $2", round_id, test_user_1)
         await conn.close()
         return len(rows)
@@ -175,7 +175,7 @@ def test_unlimited_attempts_and_scoring(client, test_user_1, test_user_1_headers
 
     # 8. User 2 timeouts / submission after round expiry
     async def expire_round():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         await conn.execute("UPDATE arena_rounds SET ends_at = now() - interval '1 second' WHERE id = $1", round_id)
         await conn.close()
     
@@ -194,7 +194,7 @@ def test_unlimited_attempts_and_scoring(client, test_user_1, test_user_1_headers
     # Trigger manual advance (simulating background task)
     async def force_advance():
         from app.services.scoring_service import ScoringService
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         scoring_service = ScoringService(conn)
         await scoring_service.advance_round(arena_id, round_id)
         await conn.close()

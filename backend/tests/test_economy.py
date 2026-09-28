@@ -24,7 +24,7 @@ def test_economy_insufficient_funds(client, test_user_1, test_user_1_headers, te
 
     # Empty user 1 balance if they have any (force insufficient funds)
     async def clear_balance():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.coin_service import CoinService
         from app.schemas.coin import CoinLedgerReason
         cs = CoinService(conn)
@@ -49,7 +49,7 @@ def test_economy_insufficient_funds(client, test_user_1, test_user_1_headers, te
 def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, test_user_2, test_user_2_headers):
     # Fund users
     async def fund_users():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.coin_service import CoinService
         from app.schemas.coin import CoinLedgerReason
         cs = CoinService(conn)
@@ -65,7 +65,7 @@ def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, te
 
     # Make them friends
     async def make_friends():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.repositories.friend_repository import FriendRepository
         repo = FriendRepository(conn)
         try:
@@ -114,7 +114,7 @@ def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, te
 
     # Check balance deducted
     async def get_b(uid):
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.coin_service import CoinService
         cs = CoinService(conn)
         bal = await cs.get_balance(uid)
@@ -153,7 +153,7 @@ def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, te
     round_id = res.json()[0]["id"]
     
     async def get_correct_opt():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         row = await conn.fetchrow("SELECT correct_option FROM questions WHERE id = $1", res.json()[0]["question_id"])
         await conn.close()
         return row["correct_option"]
@@ -180,7 +180,7 @@ def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, te
     # Trigger advance manually
     async def force_advance():
         from app.services.scoring_service import ScoringService
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         scoring_service = ScoringService(conn)
         await scoring_service.advance_round(arena_id, round_id) # also triggers resolve_wager internally
         await conn.close()
@@ -200,7 +200,7 @@ def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, te
 def test_wager_cancellation_refund(client, test_user_1, test_user_1_headers, test_user_2, test_user_2_headers):
     # Fund users
     async def fund_users():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.coin_service import CoinService
         from app.schemas.coin import CoinLedgerReason
         cs = CoinService(conn)
@@ -215,7 +215,7 @@ def test_wager_cancellation_refund(client, test_user_1, test_user_1_headers, tes
 
     # Make them friends
     async def make_friends():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.repositories.friend_repository import FriendRepository
         repo = FriendRepository(conn)
         try:
@@ -277,7 +277,7 @@ def test_wager_cancellation_refund(client, test_user_1, test_user_1_headers, tes
 
     # Check balances - Both should be fully refunded to original
     async def get_b(uid):
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.coin_service import CoinService
         cs = CoinService(conn)
         bal = await cs.get_balance(uid)

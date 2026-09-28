@@ -31,7 +31,7 @@ def setup_users():
     user2_id = str(uuid4())
     
     async def _setup():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         try:
             # Create user1
             await conn.execute("INSERT INTO auth.users (id, instance_id, role, aud) VALUES ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated')", user1_id)
@@ -44,7 +44,7 @@ def setup_users():
             await conn.close()
             
     async def _teardown():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         try:
             await conn.execute("DELETE FROM auth.users WHERE id IN ($1, $2)", user1_id, user2_id)
         finally:

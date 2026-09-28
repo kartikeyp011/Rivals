@@ -27,7 +27,7 @@ def client():
         yield c
 
 async def create_user_in_db(user_id: str):
-    conn = await asyncpg.connect(settings.DATABASE_URL)
+    conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
     await conn.execute("""
         INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
         VALUES ('00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2, '', now(), now(), now(), '{}', '{}', now(), now(), '', '', '', '')
@@ -101,7 +101,7 @@ def test_game_loop_full(client, test_user_1, test_user_2, auth_headers_1, auth_h
     # We need to know the correct answer to simulate a correct submission.
     # Since we can't get it from the API (it's safe), we'll query DB directly in the test.
     async def get_correct_answer():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         row = await conn.fetchrow(
             "SELECT q.correct_option FROM arena_rounds r JOIN questions q ON r.question_id = q.id WHERE r.id = $1", 
             round_id

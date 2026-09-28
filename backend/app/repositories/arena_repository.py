@@ -31,7 +31,7 @@ class ArenaRepository(BaseRepository):
     async def get_arena(self, arena_id: UUID) -> Optional[ArenaResponse]:
         row = await self.conn.fetchrow(
             "SELECT * FROM arenas WHERE id = $1",
-            str(arena_id)
+            arena_id
         )
         if row:
             row_dict = dict(row)
@@ -66,7 +66,7 @@ class ArenaRepository(BaseRepository):
         # Only updates status and timestamp dynamically
         
         updates = ["status = $2"]
-        params = [str(arena_id), status]
+        params = [arena_id, status]
         idx = 3
         
         if start_time:

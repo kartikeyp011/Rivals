@@ -10,11 +10,18 @@ from unittest.mock import patch
 from app.main import app
 from app.core.config import settings
 
+@pytest.fixture(autouse=True)
+def disable_schedule_round_timeout():
+    async def dummy_timeout(*args, **kwargs):
+        pass
+    with patch("app.routers.arenas.schedule_round_timeout", side_effect=dummy_timeout):
+        yield
+
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_questions():
     """Provision exactly 3 deterministic, valid MCQ test questions for the duration of the E2E tests."""
     async def seed_questions():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         # Use specific UUIDs so they are easily identifiable and deterministic
         q_ids = [
             '11111111-1111-1111-1111-111111111111',
@@ -23,7 +30,9 @@ def setup_test_questions():
         ]
         
         # Clean up any previous run
-        await conn.execute("DELETE FROM arenas WHERE metadata->>'type' = 'daily'")
+        print("Executing DELETE FROM arenas")
+        await conn.execute("DELETE FROM arenas WHERE category = 'daily'")
+        print("Finished DELETE FROM arenas")
         await conn.execute("DELETE FROM arena_rounds WHERE question_id = ANY($1::uuid[])", q_ids)
         await conn.execute("DELETE FROM questions WHERE id = ANY($1::uuid[])", q_ids)
         
@@ -38,7 +47,7 @@ def setup_test_questions():
         await conn.close()
         
     async def teardown_questions():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         q_ids = [
             '11111111-1111-1111-1111-111111111111',
             '22222222-2222-2222-2222-222222222222',
@@ -59,7 +68,7 @@ def client():
         yield c
 
 async def create_user_in_db(user_id: str, username: str):
-    conn = await asyncpg.connect(settings.DATABASE_URL)
+    conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
     await conn.execute("""
         INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
         VALUES ('00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2, '', now(), now(), now(), '{}', '{}', now(), now(), '', '', '', '')
@@ -96,6 +105,12 @@ def user_d():
     asyncio.run(create_user_in_db(user_id, f"userd_{user_id[:8]}"))
     return user_id
 
+@pytest.fixture(scope="module")
+def user_e():
+    user_id = str(uuid4())
+    asyncio.run(create_user_in_db(user_id, f"usere_{user_id[:8]}"))
+    return user_id
+
 def get_auth_headers(user_id: str):
     import jwt
     import os
@@ -103,6 +118,8 @@ def get_auth_headers(user_id: str):
     payload = {
         "sub": user_id,
         "role": "authenticated",
+        "aud": "authenticated",
+        "iss": f"{settings.SUPABASE_URL}/auth/v1",
         "iat": int(datetime.now(timezone.utc).timestamp()),
         "exp": int((datetime.now(timezone.utc) + timedelta(days=1)).timestamp())
     }
@@ -113,18 +130,21 @@ def test_daily_arena_deterministic(client, user_a, user_b):
     headers_a = get_auth_headers(user_a)
     headers_b = get_auth_headers(user_b)
     
-    # 1. Same user, same UTC day -> same personal arena ID, same questions
+    print("getting arena 1")
     resp1 = client.get("/api/v1/arenas/daily", headers=headers_a)
     assert resp1.status_code == 200
     arena1 = resp1.json()
 
+    print("getting arena 2")
     resp2 = client.get("/api/v1/arenas/daily", headers=headers_a)
     assert resp2.status_code == 200
     arena2 = resp2.json()
 
     assert arena1["id"] == arena2["id"]
     
+    print("getting rounds 1")
     rounds1 = client.get(f"/api/v1/arenas/{arena1['id']}/rounds", headers=headers_a).json()
+    print("getting rounds 2")
     rounds2 = client.get(f"/api/v1/arenas/{arena2['id']}/rounds", headers=headers_a).json()
     assert len(rounds1) == 3
     
@@ -132,12 +152,14 @@ def test_daily_arena_deterministic(client, user_a, user_b):
     assert q_ids_1 == [r["question_id"] for r in rounds2]
 
     # 2. Different user, same UTC day -> different personal arena ID, identical 3 questions
+    print("getting arena b")
     resp_b = client.get("/api/v1/arenas/daily", headers=headers_b)
     assert resp_b.status_code == 200
     arena_b = resp_b.json()
 
     assert arena_b["id"] != arena1["id"]
 
+    print("getting rounds b")
     rounds_b = client.get(f"/api/v1/arenas/{arena_b['id']}/rounds", headers=headers_b).json()
     q_ids_b = [r["question_id"] for r in rounds_b]
     assert q_ids_1 == q_ids_b
@@ -147,6 +169,7 @@ def test_daily_arena_deterministic(client, user_a, user_b):
         mock_dt.now.return_value = datetime.now(timezone.utc) + timedelta(days=1)
         # Need to pass timezone through since datetime.now is mocked
         mock_dt.timezone = timezone
+        print("getting next arena")
         resp_next = client.get("/api/v1/arenas/daily", headers=headers_a)
         assert resp_next.status_code == 200
         arena_next = resp_next.json()
@@ -154,10 +177,13 @@ def test_daily_arena_deterministic(client, user_a, user_b):
         # New day, new arena instance
         assert arena_next["id"] != arena1["id"]
         
+        print("getting next rounds")
         rounds_next = client.get(f"/api/v1/arenas/{arena_next['id']}/rounds", headers=headers_a).json()
         q_ids_next = [r["question_id"] for r in rounds_next]
         # At least one question might overlap, but it shouldn't be identically seeded.
         pass
+
+    print("End of test_daily_arena_deterministic")
 
 @pytest.mark.asyncio
 async def test_daily_arena_concurrency(user_c):
@@ -181,7 +207,7 @@ async def test_daily_arena_concurrency(user_c):
         arena_ids = [r.json()["id"] for r in results]
         assert arena_ids[0] == arena_ids[1] == arena_ids[2]
         
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         count = await conn.fetchval("""
             SELECT count(*) FROM arenas
             WHERE category = 'daily' AND host_user_id = $1::uuid
@@ -206,15 +232,15 @@ def test_daily_arena_insufficient_questions(client, user_d, monkeypatch):
     assert resp.status_code >= 400
     
     async def check_no_arena():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         count = await conn.fetchval("SELECT count(*) FROM arenas WHERE category = 'daily' AND host_user_id = $1::uuid", user_d)
         await conn.close()
         assert count == 0
         
     asyncio.run(check_no_arena())
 
-def test_e2e_economy_and_duplicate_completion(client, user_a):
-    headers_a = get_auth_headers(user_a)
+def test_e2e_economy_and_duplicate_completion(client, user_e):
+    headers_a = get_auth_headers(user_e)
     
     # Check economy before
     coins_before = client.get("/api/v1/coins/balance", headers=headers_a).json()["balance"]
@@ -227,9 +253,7 @@ def test_e2e_economy_and_duplicate_completion(client, user_a):
     # 6. Lifecycle: Start arena
     arena = client.get("/api/v1/arenas/daily", headers=headers_a).json()
     arena_id = arena["id"]
-    assert arena["status"] == "pending"
-    
-    client.post(f"/api/v1/arenas/{arena_id}/start", headers=headers_a)
+    assert arena["status"] == "active"
     
     # Verify GET /arenas/daily after started returns the same instance
     arena_fetch_again = client.get("/api/v1/arenas/daily", headers=headers_a).json()
@@ -240,9 +264,10 @@ def test_e2e_economy_and_duplicate_completion(client, user_a):
     rounds = client.get(f"/api/v1/arenas/{arena_id}/rounds", headers=headers_a).json()
     assert len(rounds) == 3
     
-    async def get_correct_answer(round_id):
-        conn = await asyncpg.connect(settings.DATABASE_URL)
-        row = await conn.fetchrow("SELECT q.correct_option FROM arena_rounds r JOIN questions q ON r.question_id = q.id WHERE r.id = $1", round_id)
+    async def get_correct_answer(round_id_str):
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
+        import uuid
+        row = await conn.fetchrow("SELECT q.correct_option FROM arena_rounds r JOIN questions q ON r.question_id = q.id WHERE r.id = $1", uuid.UUID(round_id_str))
         await conn.close()
         return row["correct_option"]
         
@@ -284,8 +309,8 @@ def test_e2e_economy_and_duplicate_completion(client, user_a):
     assert streak_repeat == streak_after
     assert score_repeat == score_after
 
-def test_leaderboard_combinations(client, user_a, user_d):
-    headers_a = get_auth_headers(user_a)
+def test_leaderboard_combinations(client, user_e, user_d):
+    headers_a = get_auth_headers(user_e)
     headers_d = get_auth_headers(user_d)
     date_str = datetime.now(timezone.utc).date().isoformat()
     
@@ -308,6 +333,7 @@ def test_leaderboard_combinations(client, user_a, user_d):
     resp_friends_all = client.get(f"/api/v1/leaderboards/me?period=all_time&period_key=all_time&is_friends=true", headers=headers_a)
     assert resp_friends_all.status_code == 200
 
-    # Unranked user
+    # Unranked user (but globally opted-in)
     resp_unranked = client.get(f"/api/v1/leaderboards/me?period=daily&period_key={date_str}", headers=headers_d)
-    assert resp_unranked.status_code == 404
+    assert resp_unranked.status_code == 200
+    assert resp_unranked.json()["score"] == 0

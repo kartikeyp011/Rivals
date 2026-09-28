@@ -11,7 +11,7 @@ class InviteRepository(BaseRepository):
             VALUES ($1, $2, $3)
             RETURNING *
             """,
-            str(arena_id), inviter_id, invitee_id
+            arena_id, inviter_id, invitee_id
         )
         return InviteResponse(**dict(row))
 
@@ -56,6 +56,6 @@ class InviteRepository(BaseRepository):
             WHERE arena_id = $1
             ORDER BY created_at DESC
             """,
-            str(arena_id)
+            arena_id
         )
         return [InviteResponse(**dict(r)) for r in rows]

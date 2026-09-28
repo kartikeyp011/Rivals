@@ -14,7 +14,7 @@ class AttemptRepository(BaseRepository):
             ON CONFLICT (round_id, user_id) DO NOTHING
             RETURNING *
             """,
-            str(arena_id), str(round_id), user_id
+            arena_id, round_id, user_id
         )
         if row:
             return AttemptResponse(**dict(row))
@@ -22,7 +22,7 @@ class AttemptRepository(BaseRepository):
         # If it conflicted, fetch the existing one
         row = await self.conn.fetchrow(
             "SELECT * FROM arena_attempts WHERE round_id = $1 AND user_id = $2",
-            str(round_id), user_id
+            round_id, user_id
         )
         return AttemptResponse(**dict(row))
 
@@ -51,7 +51,7 @@ class AttemptRepository(BaseRepository):
             WHERE round_id = $1 AND user_id = $2
             RETURNING *
             """,
-            str(round_id), user_id, status, selected_option, is_correct, response_ms
+            round_id, user_id, status, selected_option, is_correct, response_ms
         )
         if row:
             return AttemptResponse(**dict(row))
@@ -64,7 +64,7 @@ class AttemptRepository(BaseRepository):
             WHERE round_id = $1
             ORDER BY created_at DESC
             """,
-            str(round_id)
+            round_id
         )
         return [AttemptResponse(**dict(r)) for r in rows]
 
@@ -75,6 +75,6 @@ class AttemptRepository(BaseRepository):
             WHERE round_id = $1 AND user_id = $2
             ORDER BY created_at DESC
             """,
-            str(round_id), user_id
+            round_id, user_id
         )
         return [AttemptResponse(**dict(r)) for r in rows]

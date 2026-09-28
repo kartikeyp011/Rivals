@@ -11,14 +11,14 @@ class ParticipantRepository(BaseRepository):
             VALUES ($1, $2, $3)
             RETURNING *
             """,
-            str(arena_id), user_id, status
+            arena_id, user_id, status
         )
         return ParticipantResponse(**dict(row))
 
     async def get_participant(self, arena_id: UUID, user_id: str) -> Optional[ParticipantResponse]:
         row = await self.conn.fetchrow(
             "SELECT * FROM arena_participants WHERE arena_id = $1 AND user_id = $2",
-            str(arena_id), user_id
+            arena_id, user_id
         )
         if row:
             return ParticipantResponse(**dict(row))
@@ -32,7 +32,7 @@ class ParticipantRepository(BaseRepository):
             WHERE arena_id = $1 AND user_id = $2
             RETURNING *
             """,
-            str(arena_id), user_id, status
+            arena_id, user_id, status
         )
         if row:
             return ParticipantResponse(**dict(row))
@@ -45,10 +45,10 @@ class ParticipantRepository(BaseRepository):
                    p.username,
                    p.avatar_url
             FROM arena_participants ap
-            LEFT JOIN profiles p ON p.id::text = ap.user_id
+            LEFT JOIN profiles p ON p.id = ap.user_id
             WHERE ap.arena_id = $1
             ORDER BY ap.joined_at ASC NULLS LAST
             """,
-            str(arena_id)
+            arena_id
         )
         return [ParticipantResponse(**dict(r)) for r in rows]

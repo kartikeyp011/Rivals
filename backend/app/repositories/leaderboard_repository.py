@@ -32,14 +32,22 @@ class LeaderboardRepository:
         rows = await self.conn.fetch(
             """
             SELECT 
-                l.*, 
+                l.id,
+                p.id as user_id,
+                $1 as period,
+                $2 as period_key,
+                COALESCE(l.score, 0) as score,
+                COALESCE(l.arenas_played, 0) as arenas_played,
+                COALESCE(l.arenas_won, 0) as arenas_won,
+                l.created_at,
+                l.updated_at,
                 p.username, 
                 p.avatar_url,
-                RANK() OVER (ORDER BY l.score DESC) as rank
-            FROM leaderboards l
-            JOIN profiles p ON l.user_id = p.id
-            WHERE l.period = $1 AND l.period_key = $2 AND p.global_opt_in = TRUE
-            ORDER BY l.score DESC
+                RANK() OVER (ORDER BY COALESCE(l.score, 0) DESC) as rank
+            FROM profiles p
+            LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $1 AND l.period_key = $2
+            WHERE p.global_opt_in = TRUE
+            ORDER BY COALESCE(l.score, 0) DESC, LOWER(p.username) ASC
             LIMIT $3
             """,
             period, period_key, limit
@@ -47,7 +55,7 @@ class LeaderboardRepository:
         result = []
         for row in rows:
             d = dict(row)
-            d['id'] = str(d['id'])
+            if d.get('id'): d['id'] = str(d['id'])
             d['user_id'] = str(d['user_id'])
             result.append(LeaderboardEntry(**d))
         return result
@@ -56,20 +64,27 @@ class LeaderboardRepository:
         rows = await self.conn.fetch(
             """
             SELECT 
-                l.*, 
+                l.id,
+                p.id as user_id,
+                $1 as period,
+                $2 as period_key,
+                COALESCE(l.score, 0) as score,
+                COALESCE(l.arenas_played, 0) as arenas_played,
+                COALESCE(l.arenas_won, 0) as arenas_won,
+                l.created_at,
+                l.updated_at,
                 p.username, 
                 p.avatar_url,
-                RANK() OVER (ORDER BY l.score DESC) as rank
-            FROM leaderboards l
-            JOIN profiles p ON l.user_id = p.id
-            WHERE l.period = $1 AND l.period_key = $2
-              AND (
-                  l.user_id = $3
-                  OR l.user_id IN (
+                RANK() OVER (ORDER BY COALESCE(l.score, 0) DESC) as rank
+            FROM profiles p
+            LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $1 AND l.period_key = $2
+            WHERE (
+                  p.id = $3
+                  OR p.id IN (
                       SELECT friend_id FROM friends WHERE user_id = $3 AND status = 'accepted'
                   )
               )
-            ORDER BY l.score DESC
+            ORDER BY COALESCE(l.score, 0) DESC, LOWER(p.username) ASC
             LIMIT $4
             """,
             period, period_key, UUID(user_id), limit
@@ -77,7 +92,7 @@ class LeaderboardRepository:
         result = []
         for row in rows:
             d = dict(row)
-            d['id'] = str(d['id'])
+            if d.get('id'): d['id'] = str(d['id'])
             d['user_id'] = str(d['user_id'])
             result.append(LeaderboardEntry(**d))
         return result
@@ -86,27 +101,41 @@ class LeaderboardRepository:
         row = await self.conn.fetchrow(
             """
             WITH UserScore AS (
-                SELECT score FROM leaderboards 
-                WHERE user_id = $1 AND period = $2 AND period_key = $3
+                SELECT COALESCE(l.score, 0) as score
+                FROM profiles p
+                LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $2 AND l.period_key = $3
+                WHERE p.id = $1
             ),
             RankInfo AS (
                 SELECT COUNT(*) + 1 as rank
-                FROM leaderboards l
-                JOIN profiles p ON l.user_id = p.id
-                WHERE l.period = $2 AND l.period_key = $3 AND p.global_opt_in = TRUE
-                AND l.score > (SELECT score FROM UserScore)
+                FROM profiles p
+                LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $2 AND l.period_key = $3
+                WHERE p.global_opt_in = TRUE
+                AND COALESCE(l.score, 0) > (SELECT score FROM UserScore)
             )
-            SELECT l.*, p.username, p.avatar_url, r.rank
-            FROM leaderboards l
-            JOIN profiles p ON l.user_id = p.id
+            SELECT
+                l.id,
+                p.id as user_id,
+                $2 as period,
+                $3 as period_key,
+                COALESCE(l.score, 0) as score,
+                COALESCE(l.arenas_played, 0) as arenas_played,
+                COALESCE(l.arenas_won, 0) as arenas_won,
+                l.created_at,
+                l.updated_at,
+                p.username,
+                p.avatar_url,
+                r.rank
+            FROM profiles p
+            LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $2 AND l.period_key = $3
             CROSS JOIN RankInfo r
-            WHERE l.user_id = $1 AND l.period = $2 AND l.period_key = $3
+            WHERE p.id = $1
             """,
             UUID(user_id), period, period_key
         )
         if row:
             d = dict(row)
-            d['id'] = str(d['id'])
+            if d.get('id'): d['id'] = str(d['id'])
             d['user_id'] = str(d['user_id'])
             return LeaderboardEntry(**d)
         return None

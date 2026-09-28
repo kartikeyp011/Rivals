@@ -14,7 +14,7 @@ def anyio_backend():
 def test_streak_increment_and_recovery(client, test_user_1, test_user_1_headers):
     # Set timezone for test user
     async def setup_profile():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         await conn.execute("UPDATE profiles SET timezone = 'America/New_York' WHERE id = $1", test_user_1)
         await conn.close()
         
@@ -33,7 +33,7 @@ def test_streak_increment_and_recovery(client, test_user_1, test_user_1_headers)
     
     # We will test update_streak directly via unit tests or patch datetime
     async def force_streak(current, longest, date_str):
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.streak_service import StreakService
         service = StreakService(conn)
         from datetime import datetime

@@ -7,7 +7,7 @@ from app.core.config import settings
 
 # Test helper to simulate subscriptions
 async def _set_subscription_state(user_id, status, will_renew=True):
-    conn = await asyncpg.connect(settings.DATABASE_URL)
+    conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
     await conn.execute(
         """
         INSERT INTO subscriptions (
@@ -26,7 +26,7 @@ async def _set_subscription_state(user_id, status, will_renew=True):
     await conn.close()
 
 async def _shift_claim_period(user_id, weeks=-1):
-    conn = await asyncpg.connect(settings.DATABASE_URL)
+    conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
     await conn.execute(
         """
         UPDATE rivals_plus_weekly_claims

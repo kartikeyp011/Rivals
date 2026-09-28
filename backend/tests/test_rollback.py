@@ -12,7 +12,7 @@ def anyio_backend():
 def test_wager_resolution_failure_rolls_back_arena_status(client, test_user_1, test_user_1_headers, test_user_2, test_user_2_headers):
     # Fund users
     async def fund_users():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.services.coin_service import CoinService
         from app.schemas.coin import CoinLedgerReason
         cs = CoinService(conn)
@@ -24,7 +24,7 @@ def test_wager_resolution_failure_rolls_back_arena_status(client, test_user_1, t
 
     # Make them friends
     async def make_friends():
-        conn = await asyncpg.connect(settings.DATABASE_URL)
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
         from app.repositories.friend_repository import FriendRepository
         repo = FriendRepository(conn)
         try:
@@ -96,7 +96,7 @@ def test_wager_resolution_failure_rolls_back_arena_status(client, test_user_1, t
         # Manually advance the round
         async def force_advance():
             from app.services.scoring_service import ScoringService
-            conn = await asyncpg.connect(settings.DATABASE_URL)
+            conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
             scoring_service = ScoringService(conn)
             try:
                 await scoring_service.advance_round(arena_id, round_id)

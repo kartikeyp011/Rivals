@@ -22,7 +22,7 @@ class ResultRepository(BaseRepository):
                 is_winner = EXCLUDED.is_winner
             RETURNING *
             """,
-            str(arena_id), user_id, final_rank, total_score, rounds_won, rounds_played, is_winner
+            arena_id, user_id, final_rank, total_score, rounds_won, rounds_played, is_winner
         )
         return ResultResponse(**dict(row))
 
@@ -33,7 +33,7 @@ class ResultRepository(BaseRepository):
             WHERE arena_id = $1
             ORDER BY final_rank ASC
             """,
-            str(arena_id)
+            arena_id
         )
         return [ResultResponse(**dict(r)) for r in rows]
 
