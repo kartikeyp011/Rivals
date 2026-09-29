@@ -16,19 +16,19 @@ class SubscriptionRepository:
         return str(row['id']) if row else None
 
     async def event_already_processed(self, event_id: str) -> bool:
-        # Check if the event exists, if not, insert and return False.
-        # This acts as our idempotency lock.
-        try:
-            await self.conn.execute(
-                "INSERT INTO revenuecat_events (event_id) VALUES ($1)",
-                event_id
-            )
-            return False
-        except Exception as e:
-            # If it's a unique constraint violation, it was already processed.
-            if e.__class__.__name__ == 'UniqueViolationError' or 'unique constraint' in str(e).lower() or '23505' in str(e):
-                return True
-            raise e
+        # Claim the event ID. Must run inside the same transaction as the event's
+        # side effects, so a failed run rolls the claim back and RevenueCat's retry
+        # is processed instead of being skipped as a duplicate.
+        row = await self.conn.fetchrow(
+            """
+            INSERT INTO revenuecat_events (event_id)
+            VALUES ($1)
+            ON CONFLICT (event_id) DO NOTHING
+            RETURNING event_id
+            """,
+            event_id
+        )
+        return row is None
 
     async def update_event_metadata(
         self,

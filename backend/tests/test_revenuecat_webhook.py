@@ -163,3 +163,29 @@ async def test_webhook_lifecycle_and_idempotency(client, test_user_1, monkeypatc
         headers={"Authorization": "Bearer test_secret"}
     )
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_webhook_failure_is_retryable(client, test_user_1, monkeypatch):
+    """A failed run must not burn the event ID: RevenueCat's retry has to be processed."""
+    from app.core.config import settings
+    from app.repositories.subscription_repository import SubscriptionRepository
+    monkeypatch.setattr(settings, "REVENUECAT_WEBHOOK_SECRET", "test_secret")
+
+    payload = create_payload("INITIAL_PURCHASE", test_user_1, str(uuid4()))
+    headers = {"Authorization": "Bearer test_secret"}
+
+    original = SubscriptionRepository.upsert_subscription
+
+    async def boom(self, *args, **kwargs):
+        raise RuntimeError("simulated DB failure")
+
+    monkeypatch.setattr(SubscriptionRepository, "upsert_subscription", boom)
+    response = client.post("/api/v1/webhooks/revenuecat", json=payload, headers=headers)
+    assert response.status_code == 500
+
+    # Retry of the same event succeeds instead of being skipped as a duplicate
+    monkeypatch.setattr(SubscriptionRepository, "upsert_subscription", original)
+    response = client.post("/api/v1/webhooks/revenuecat", json=payload, headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {"status": "processed"}

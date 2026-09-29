@@ -24,115 +24,95 @@ class SubscriptionService:
         event = payload.event
         event_id = event.id
 
-        # 1. Idempotency Check
-        is_processed = await self.repo.event_already_processed(event_id)
-        if is_processed:
-            logger.info(f"RevenueCat event {event_id} already processed. Skipping.")
-            return {"status": "already_processed"}
+        # Claiming the event ID and applying its effects share one transaction: if
+        # anything fails the claim is rolled back too, so RevenueCat's retry is
+        # processed rather than skipped as an already-seen event.
+        async with self.conn.transaction():
+            if await self.repo.event_already_processed(event_id):
+                logger.info(f"RevenueCat event {event_id} already processed. Skipping.")
+                return {"status": "already_processed"}
 
-        processing_result = "processed"
+            processing_result = await self._apply_event(payload)
+
+            await self.repo.update_event_metadata(
+                event_id=event_id,
+                event_type=event.type,
+                app_user_id=event.app_user_id,
+                environment=event.environment.lower() if event.environment else None,
+                product_id=event.product_id,
+                processing_result=processing_result
+            )
+            return {"status": processing_result}
+
+    async def _apply_event(self, payload: RevenueCatEventRequest) -> str:
+        """Apply the event's effects and return the processing result label."""
+        event = payload.event
+        event_id = event.id
         event_type = event.type
         app_user_id = event.app_user_id
         env = event.environment.lower() if event.environment else None
-        product_id = event.product_id
 
+        if event_type == 'TEST':
+            logger.info(f"RevenueCat TEST event {event_id} acknowledged.")
+            return "processed"
+
+        # Validate that app_user_id is a valid UUID matching our auth.users
         try:
-            if event_type == 'TEST':
-                logger.info(f"RevenueCat TEST event {event_id} acknowledged.")
-                processing_result = "processed"
-                return {"status": processing_result}
+            user_id = await self.repo.get_user_id_by_uuid(app_user_id)
+        except ValueError:
+            logger.warning(f"RevenueCat event {event_id} has invalid UUID format for app_user_id: {app_user_id}. Ignoring safely.")
+            return "ignored_invalid_user_id"
+        if not user_id:
+            logger.warning(f"RevenueCat event {event_id} mapped to unknown user {app_user_id}. Ignoring safely.")
+            return "ignored_unknown_user"
 
-            # Try to validate that app_user_id is a valid UUID matching our auth.users
-            try:
-                user_id = await self.repo.get_user_id_by_uuid(app_user_id)
-                if not user_id:
-                    logger.warning(f"RevenueCat event {event_id} mapped to unknown user {app_user_id}. Ignoring safely.")
-                    processing_result = "ignored_unknown_user"
-                    return {"status": processing_result}
-            except ValueError:
-                # Not a valid UUID
-                logger.warning(f"RevenueCat event {event_id} has invalid UUID format for app_user_id: {app_user_id}. Ignoring safely.")
-                processing_result = "ignored_invalid_user_id"
-                return {"status": processing_result}
+        db_env = 'sandbox' if env == 'sandbox' else 'production'
 
-            db_env = 'sandbox' if env == 'sandbox' else 'production'
+        expires_at = self._ms_to_datetime(event.expiration_at_ms) if event.expiration_at_ms else None
 
+        # We process the first entitlement if available, though typically rivals_plus
+        entitlement_id = event.entitlement_ids[0] if event.entitlement_ids else 'rivals_plus'
+
+        if event_type in ('INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE', 'CANCELLATION'):
+            will_renew = event_type != 'CANCELLATION'
             purchased_at = self._ms_to_datetime(event.purchased_at_ms)
-            expires_at = self._ms_to_datetime(event.expiration_at_ms) if event.expiration_at_ms else None
-
-            # We process the first entitlement if available, though typically rivals_plus
-            entitlement_id = event.entitlement_ids[0] if event.entitlement_ids else 'rivals_plus'
-
-            if event_type in ('INITIAL_PURCHASE', 'RENEWAL', 'UNCANCELLATION', 'PRODUCT_CHANGE'):
-                will_renew = True if event_type != 'CANCELLATION' else False
-                if event_type == 'UNCANCELLATION':
-                    will_renew = True
-
-                await self.repo.upsert_subscription(
-                    user_id=user_id,
-                    product_id=event.product_id,
-                    entitlement_id=entitlement_id,
-                    status='active',
-                    environment=db_env,
-                    purchased_at=purchased_at,
-                    expires_at=expires_at,
-                    will_renew=will_renew,
-                    store_transaction_id=event.transaction_id,
-                    revenuecat_app_user_id=app_user_id
-                )
-                logger.info(f"Upserted active subscription for user {user_id}")
-
-            elif event_type == 'CANCELLATION':
-                # User canceled auto-renew, but is still active until expires_at
-                await self.repo.upsert_subscription(
-                    user_id=user_id,
-                    product_id=event.product_id,
-                    entitlement_id=entitlement_id,
-                    status='active',
-                    environment=db_env,
-                    purchased_at=purchased_at,
-                    expires_at=expires_at,
-                    will_renew=False,
-                    store_transaction_id=event.transaction_id,
-                    revenuecat_app_user_id=app_user_id
-                )
-                logger.info(f"Marked subscription as will_renew=False for user {user_id}")
-
-            elif event_type == 'EXPIRATION':
-                # Sub has fully expired
-                await self.repo.update_subscription_status(
-                    user_id=user_id,
-                    entitlement_id=entitlement_id,
-                    status='expired',
-                    will_renew=False
-                )
-                logger.info(f"Marked subscription as expired for user {user_id}")
-
-            elif event_type == 'BILLING_ISSUE':
-                await self.repo.update_subscription_status(
-                    user_id=user_id,
-                    entitlement_id=entitlement_id,
-                    status='past_due',
-                    will_renew=True
-                )
-                logger.info(f"Marked subscription as past_due for user {user_id}")
-
-            else:
-                logger.info(f"RevenueCat event {event_type} ignored for user {user_id}")
-                processing_result = "ignored_unsupported_event"
-
-            return {"status": processing_result}
-
-        finally:
-            # Update observability fields
-            await self.repo.update_event_metadata(
-                event_id=event_id,
-                event_type=event_type,
-                app_user_id=app_user_id,
-                environment=env,
-                product_id=product_id,
-                processing_result=processing_result
+            await self.repo.upsert_subscription(
+                user_id=user_id,
+                product_id=event.product_id,
+                entitlement_id=entitlement_id,
+                status='active',
+                environment=db_env,
+                purchased_at=purchased_at,
+                expires_at=expires_at,
+                will_renew=will_renew,
+                store_transaction_id=event.transaction_id,
+                revenuecat_app_user_id=app_user_id
             )
+            logger.info(f"Upserted active subscription for user {user_id} (will_renew={will_renew})")
+
+        elif event_type == 'EXPIRATION':
+            await self.repo.update_subscription_status(
+                user_id=user_id,
+                entitlement_id=entitlement_id,
+                status='expired',
+                will_renew=False
+            )
+            logger.info(f"Marked subscription as expired for user {user_id}")
+
+        elif event_type == 'BILLING_ISSUE':
+            await self.repo.update_subscription_status(
+                user_id=user_id,
+                entitlement_id=entitlement_id,
+                status='past_due',
+                will_renew=True
+            )
+            logger.info(f"Marked subscription as past_due for user {user_id}")
+
+        else:
+            logger.info(f"RevenueCat event {event_type} ignored for user {user_id}")
+            return "ignored_unsupported_event"
+
+        return "processed"
 
     def _get_current_weekly_period(self):
         # Weekly period: Monday 00:00:00 UTC through Sunday 23:59:59 UTC
@@ -146,7 +126,8 @@ class SubscriptionService:
     async def claim_weekly_bonus(self, user_id: str) -> WeeklyBonusClaimResponse:
         sub = await self.repo.get_active_subscription(user_id, 'rivals_plus')
         
-        if not sub or sub['status'] != 'active':
+        expired = bool(sub and sub['expires_at'] and sub['expires_at'] <= datetime.now(timezone.utc))
+        if not sub or sub['status'] != 'active' or expired:
             # Sub is either missing, expired, past_due, etc.
             # We return early. Wait, if it's inactive, we should raise an error or return a specific response.
             # The user asked for "Not eligible: appropriate HTTP status". We can raise an error or just return.

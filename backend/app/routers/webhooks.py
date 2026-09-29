@@ -40,6 +40,6 @@ async def revenuecat_webhook(
         result = await service.handle_webhook(payload)
         return result
     except Exception as e:
-        logger.error(f"Error processing RevenueCat webhook: {e}")
+        logger.exception("Error processing RevenueCat webhook")
         # Return 500 so RevenueCat will retry
         raise HTTPException(status_code=500, detail="Internal Server Error")
