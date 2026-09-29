@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     IDEMPOTENCY_KEY_TTL_SECONDS: int = 86400
     WEEKLY_BONUS_COINS: int = 250
+
+    # Usernames matching this regex are hidden from leaderboards and user search
+    # (leftover automated-test accounts). Set to an empty string to disable.
+    HIDDEN_USERNAME_REGEX: str = r"^(c_zero_|d_zero_|m_user_|z_user_|a_user_|user_)[0-9a-f-]{8,}$"
     
     # Apple Sign-In
     APPLE_TEAM_ID: str | None = None

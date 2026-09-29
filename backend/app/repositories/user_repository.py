@@ -2,6 +2,7 @@ from typing import List
 from asyncpg import Connection
 
 from app.schemas.user import UserSearchResponse
+from app.core.config import settings
 
 class UserRepository:
     def __init__(self, conn: Connection):
@@ -12,11 +13,12 @@ class UserRepository:
             SELECT id, username, avatar_url
             FROM profiles
             WHERE username ILIKE $1
+              AND ($3::text = '' OR username !~ $3::text)
             ORDER BY username ASC
             LIMIT $2
         """
         search_pattern = f"%{query}%"
-        rows = await self.conn.fetch(sql, search_pattern, limit)
+        rows = await self.conn.fetch(sql, search_pattern, limit, settings.HIDDEN_USERNAME_REGEX)
         return [UserSearchResponse(**dict(r)) for r in rows]
 
     async def delete_user_data(self, user_id: str) -> None:

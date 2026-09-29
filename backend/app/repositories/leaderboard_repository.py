@@ -2,6 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 from asyncpg import Connection
 from app.schemas.leaderboard import LeaderboardEntry
+from app.core.config import settings
 
 class LeaderboardRepository:
     def __init__(self, conn: Connection):
@@ -47,10 +48,12 @@ class LeaderboardRepository:
             FROM profiles p
             LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $1 AND l.period_key = $2
             WHERE p.global_opt_in = TRUE
+              AND COALESCE(l.score, 0) > 0
+              AND ($4::text = '' OR p.username !~ $4::text)
             ORDER BY COALESCE(l.score, 0) DESC, LOWER(p.username) ASC
             LIMIT $3
             """,
-            period, period_key, limit
+            period, period_key, limit, settings.HIDDEN_USERNAME_REGEX
         )
         result = []
         for row in rows:
@@ -84,10 +87,11 @@ class LeaderboardRepository:
                       SELECT friend_id FROM friends WHERE user_id = $3 AND status = 'accepted'
                   )
               )
+              AND ($5::text = '' OR p.id = $3 OR p.username !~ $5::text)
             ORDER BY COALESCE(l.score, 0) DESC, LOWER(p.username) ASC
             LIMIT $4
             """,
-            period, period_key, UUID(user_id), limit
+            period, period_key, UUID(user_id), limit, settings.HIDDEN_USERNAME_REGEX
         )
         result = []
         for row in rows:
@@ -111,6 +115,7 @@ class LeaderboardRepository:
                 FROM profiles p
                 LEFT JOIN leaderboards l ON l.user_id = p.id AND l.period = $2 AND l.period_key = $3
                 WHERE p.global_opt_in = TRUE
+                AND ($4::text = '' OR p.username !~ $4::text)
                 AND COALESCE(l.score, 0) > (SELECT score FROM UserScore)
             )
             SELECT
@@ -131,7 +136,7 @@ class LeaderboardRepository:
             CROSS JOIN RankInfo r
             WHERE p.id = $1
             """,
-            UUID(user_id), period, period_key
+            UUID(user_id), period, period_key, settings.HIDDEN_USERNAME_REGEX
         )
         if row:
             d = dict(row)

@@ -29,8 +29,7 @@ def test_leaderboards(client, test_user_1, test_user_1_headers, test_user_2, tes
     """
     Full leaderboard integration test covering:
       - Global leaderboard respects global_opt_in
-      - Zero-score users with global_opt_in=TRUE appear in global leaderboard
-      - Zero-score users without global_opt_in are excluded from global leaderboard
+      - Zero-score users are excluded from the global leaderboard (opted in or not)
       - Friends leaderboard includes friends regardless of global_opt_in
       - Tied score ordering is alphabetical (ascending)
       - Leaderboard entries: id may be null (zero-score), user_id is always present
@@ -78,7 +77,7 @@ def test_leaderboards(client, test_user_1, test_user_1_headers, test_user_2, tes
             await svc.record_score(user_3, now, "UTC", 500, False)
             await svc.repo.upsert_score(user_3, "daily", period_key, 500, False)
 
-            # Zero-score user: global_opt_in=TRUE, friend of test_user_1 — must appear in global
+            # Zero-score user: global_opt_in=TRUE, friend of test_user_1 — must NOT appear in global
             user_0_in = str(uuid4())
             inline_user_ids.append(user_0_in)
             await conn.execute("INSERT INTO auth.users (id, email) VALUES ($1, $2)", user_0_in, f"{user_0_in}@test.com")
@@ -118,19 +117,17 @@ def test_leaderboards(client, test_user_1, test_user_1_headers, test_user_2, tes
         # Opted-in users appear
         assert test_user_1 in user_ids, "test_user_1 (global_opt_in=TRUE) must appear"
         assert user_3 in user_ids,      "user_3 (global_opt_in=TRUE) must appear"
-        assert user_0_in in user_ids,   "zero-score user with global_opt_in=TRUE must appear"
+
+        # Zero-score users are hidden from the global board
+        assert user_0_in not in user_ids,   "zero-score user must not appear in global leaderboard"
 
         # Opted-out users are excluded
         assert test_user_2 not in user_ids, "test_user_2 (global_opt_in=FALSE) must be excluded"
         assert user_0_out not in user_ids,  "zero-score user with global_opt_in=FALSE must be excluded"
 
-        # Leaderboard entry schema: user_id always non-null, id may be null for zero-score users
+        # Leaderboard entry schema: user_id always non-null
         for entry in data:
             assert entry["user_id"], "user_id must always be a non-empty string"
-
-        user_0_in_entry = next(d for d in data if d["user_id"] == user_0_in)
-        assert user_0_in_entry["score"] == 0,  "zero-score user must have score=0"
-        assert user_0_in_entry["id"] is None,  "zero-score user must have null leaderboard row id"
 
         # Rank check and tied-score alphabetical ordering (D)
         idx_m = user_ids.index(user_3)

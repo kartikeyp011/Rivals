@@ -13,6 +13,9 @@ load_dotenv(".env", override=True)
 
 from app.main import app
 from app.core.config import settings
+
+# Test accounts use the very usernames the app hides; show them while testing.
+settings.HIDDEN_USERNAME_REGEX = ""
 from app.core.db import get_db_connection
 import asyncpg
 
