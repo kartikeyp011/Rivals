@@ -8,7 +8,7 @@
     "scheme": "rivals",
     "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.kartikeyp011.rivals",
       "icon": "./assets/images/rivals-logo.png",
       "infoPlist": {
