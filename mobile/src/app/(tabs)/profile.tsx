@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Scr
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
 import * as api from '@/lib/api';
@@ -20,6 +21,14 @@ export default function ProfileScreen() {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
     const [isClaimingBonus, setIsClaimingBonus] = useState(false);
+    // Epoch ms until which this week's bonus counts as claimed (end of the current UTC week)
+    const [bonusClaimedUntil, setBonusClaimedUntil] = useState<number | null>(null);
+    const bonusClaimed = bonusClaimedUntil !== null && Date.now() < bonusClaimedUntil;
+
+    const bonusStorageKey = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        return user ? `weeklyBonusClaimedUntil:${user.id}` : null;
+    };
 
     useFocusEffect(
         useCallback(() => {
@@ -31,6 +40,14 @@ export default function ProfileScreen() {
                     ]);
                     setCoins(coinBalance);
                     setStreak(streakData.current_streak || 0);
+
+                    try {
+                        const key = await bonusStorageKey();
+                        const stored = key ? await AsyncStorage.getItem(key) : null;
+                        setBonusClaimedUntil(stored ? Number(stored) : null);
+                    } catch {
+                        // Storage is best-effort; the server still enforces one claim per week.
+                    }
 
                     if (Platform.OS === 'ios') {
                         try {
@@ -123,6 +140,16 @@ export default function ProfileScreen() {
             setIsClaimingBonus(true);
             const res = await api.claimWeeklyBonus();
             setCoins(res.balance);
+
+            // Both a fresh claim and "already claimed" mean the bonus is used up until next week.
+            const until = new Date(res.period_end).getTime() + 1000;
+            setBonusClaimedUntil(until);
+            try {
+                const key = await bonusStorageKey();
+                if (key) await AsyncStorage.setItem(key, String(until));
+            } catch {
+                // Best-effort persistence.
+            }
             if (res.claimed) {
                 Alert.alert("Weekly Bonus Claimed", `+${res.coins_awarded} coins added to your balance!`);
             } else {
@@ -228,8 +255,11 @@ export default function ProfileScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.screen}>
+        <View style={styles.header}>
             <Text style={styles.title}>👤 Profile</Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
             <View style={styles.avatarPlaceholder}>
                 {avatarUrl && avatarUrl.startsWith('http') ? (
                     <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
@@ -257,7 +287,10 @@ export default function ProfileScreen() {
                         </>
                     )}
                 </TouchableOpacity>
-                {isSubscribed && !isLoadingSubscription && (
+                {isSubscribed && !isLoadingSubscription && bonusClaimed && (
+                    <Text style={styles.bonusClaimedText}>✅ Weekly bonus claimed. Next one unlocks Monday (UTC).</Text>
+                )}
+                {isSubscribed && !isLoadingSubscription && !bonusClaimed && (
                     <TouchableOpacity
                         style={[styles.claimButton, isClaimingBonus && { opacity: 0.6 }]}
                         onPress={handleClaimWeeklyBonus}
@@ -284,13 +317,6 @@ export default function ProfileScreen() {
                     <Text style={styles.cardTitle}>Streak</Text>
                     <Text style={styles.cardText}>{streak} days</Text>
                     <Text style={styles.cardSubtext}>Tap to manage →</Text>
-                </TouchableOpacity>
-            </View>
-            <View style={styles.card}>
-                <TouchableOpacity onPress={() => router.push('/wagers')}>
-                    <Text style={styles.cardTitle}>⚔️ Wagers</Text>
-                    <Text style={styles.cardText}>Challenge friends with coin wagers</Text>
-                    <Text style={styles.cardSubtext}>Tap to view →</Text>
                 </TouchableOpacity>
             </View>
             <View style={styles.card}>
@@ -330,23 +356,32 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
             </View>
         </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    // Same structure as the other tabs: fixed header, scrolling content underneath.
+    screen: {
+        flex: 1,
+        backgroundColor: '#0a0a1a',
+    },
+    header: {
+        paddingTop: 50,
+        paddingBottom: 12,
+        alignItems: 'center',
+    },
     container: {
         flexGrow: 1,
-        backgroundColor: '#0a0a1a',
-        padding: 20,
-        paddingTop: 60,
-        paddingBottom: 100, // Extra padding to avoid tab bar overlap
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 24,
         alignItems: 'center',
     },
     title: {
         fontSize: 32,
         fontWeight: 'bold',
         color: '#ffffff',
-        marginBottom: 20,
     },
     avatarPlaceholder: {
         width: 80,
@@ -393,6 +428,12 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
+    },
+    bonusClaimedText: {
+        marginTop: 14,
+        color: '#00b894',
+        fontSize: 14,
+        textAlign: 'center',
     },
     claimButtonText: {
         color: '#0a0a1a',
