@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { router } from 'expo-router';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAppleAuth } from '../hooks/useAppleAuth';
 
@@ -54,6 +55,13 @@ export default function WelcomeScreen() {
           ) : (
             <Text style={styles.appleButtonText}>Continue with Apple</Text>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.emailLink}
+          onPress={() => router.push('/auth/sign-in')}
+        >
+          <Text style={styles.emailLinkText}>Sign in with email</Text>
         </TouchableOpacity>
 
       </View>
@@ -129,6 +137,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2a2a5a',
+  },
+  emailLink: {
+    marginTop: 20,
+    padding: 8,
+  },
+  emailLinkText: {
+    color: '#8888aa',
+    fontSize: 15,
+    textDecorationLine: 'underline',
   },
   appleButtonText: {
     color: '#ffffff',
