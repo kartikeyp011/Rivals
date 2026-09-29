@@ -146,7 +146,6 @@ class ArenaService:
                 from app.routers.arenas import schedule_round_timeout
                 asyncio.create_task(schedule_round_timeout(arena.id, first_round.id, ends_at))
 
-            print(f"RETURNING updated: {updated}")
             return updated
 
     async def get_arena(self, arena_id: UUID, user_id: str) -> ArenaResponse:
@@ -227,6 +226,16 @@ class ArenaService:
         now = datetime.now(timezone.utc)
         async with self.conn.transaction():
             updated = await self.arena_repo.update_arena_status(arena_id, 'cancelled', complete_time=now)
+
+            # Close any in-flight round so pending timers and late submissions become no-ops.
+            await self.conn.execute(
+                """
+                UPDATE arena_rounds
+                SET status = 'completed', completed_at = now(), updated_at = now()
+                WHERE arena_id = $1 AND status = 'active'
+                """,
+                arena_id
+            )
             
             # Resolve any attached wager (which will refund everyone since status is cancelled)
             from app.services.wager_service import WagerService

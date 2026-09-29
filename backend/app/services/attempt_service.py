@@ -23,6 +23,9 @@ class AttemptService:
         if not arena:
             raise NotFoundError("Arena not found")
 
+        if arena.status != 'active':
+            raise ConflictError("Attempts can only be submitted for active arenas")
+
         participant = await self.participant_repo.get_participant(arena_id, user_id)
         if not participant or participant.status != 'active':
             raise ForbiddenError("Only active participants can submit attempts")

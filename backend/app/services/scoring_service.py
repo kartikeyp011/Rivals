@@ -72,6 +72,14 @@ class ScoringService:
             if not row or row['status'] != 'active':
                 return  # Already completed, cancelled, or non-existent — nothing to do.
 
+            # A cancelled/completed arena must never advance or award anything, even if a
+            # stale round timer fires afterwards.
+            arena_status = await self.conn.fetchval(
+                "SELECT status FROM arenas WHERE id = $1", str(arena_id)
+            )
+            if arena_status != 'active':
+                return
+
             now = datetime.now(timezone.utc)
 
             # Step 2 — If the round timer has expired, mark all still-in-progress
@@ -155,7 +163,7 @@ class ScoringService:
             
     async def complete_arena(self, arena_id: UUID):
         arena = await self.arena_repo.get_arena(arena_id)
-        if not arena or arena.status == 'completed':
+        if not arena or arena.status in ('completed', 'cancelled'):
             return
             
         # Collect scores and calculate totals

@@ -1,4 +1,5 @@
 import asyncpg
+from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import Request
 import logging
@@ -40,6 +41,14 @@ async def get_db_pool() -> asyncpg.Pool:
 
 async def get_db_connection():
     """Dependency to get a single connection from the pool."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        yield conn
+
+
+@asynccontextmanager
+async def get_connection():
+    """Acquire a pooled connection outside of a FastAPI request (e.g. background tasks)."""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         yield conn
