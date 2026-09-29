@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import * as api from '@/lib/api';
@@ -184,7 +184,11 @@ export default function CreateWagerScreen() {
               ]}
               onPress={() => toggleFriend(friend.id)}
             >
-              <Text style={styles.friendAvatar}>{friend.avatar}</Text>
+              {friend.avatar.startsWith('http') ? (
+                <Image source={{ uri: friend.avatar }} style={styles.friendAvatarImage} />
+              ) : (
+                <Text style={styles.friendAvatar}>{friend.avatar}</Text>
+              )}
               <Text style={[
                 styles.friendName,
                 selectedFriends.includes(friend.id) && styles.friendNameSelected,
@@ -349,6 +353,12 @@ const styles = StyleSheet.create({
   },
   friendAvatar: {
     fontSize: 24,
+    marginRight: 12,
+  },
+  friendAvatarImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: 12,
   },
   friendName: {
