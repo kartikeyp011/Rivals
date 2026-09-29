@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { router, useFocusEffect } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -35,13 +36,23 @@ export default function HomeScreen() {
                     setCoins(coinBalance);
                     setStreak(streakData.current_streak || 0);
 
-                    const now = new Date();
-                    const todayStr = now.toISOString().split('T')[0];
-                    const [globalMe, friendsMe] = await Promise.all([
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const myId = session?.user?.id;
+
+                    const [globalMe, friendsBoard] = await Promise.all([
                         api.getLeaderboardMe('daily', todayStr).catch(() => null),
-                        api.getLeaderboardMe('daily', todayStr).catch(() => null) // Friends rank doesn't have a separate endpoint, but global rank is basically the same logic except pool size. Wait, getLeaderboardMe handles it? No, getLeaderboardMe currently just gets global rank in the query (global_opt_in=TRUE). For friends, we'd need another endpoint, but for now we can just show global for both or leave friends as --. Actually, let's just use the global rank for the badge for now. 
+                        api.getFriendsLeaderboard('daily', todayStr).catch(() => [])
                     ]);
-                    
+
+                    // The friends board always includes you, so only show a rank once you have friends.
+                    const myFriendsEntry = friendsBoard.find((e: any) => e.user_id === myId);
+                    if (myFriendsEntry && friendsBoard.length > 1) {
+                        setFriendsRank(`#${myFriendsEntry.rank}`);
+                    } else {
+                        setFriendsRank('--');
+                    }
+
                     if (globalMe) setGlobalRank(`#${globalMe.rank}`);
                 } catch (e) {
                     console.error("Failed to load dashboard data", e);
@@ -113,7 +124,7 @@ export default function HomeScreen() {
     };
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <View>
@@ -213,21 +224,21 @@ export default function HomeScreen() {
                     onPress={() => router.push('/(tabs)/leaderboards')}
                 >
                     <Text style={styles.actionIcon}>🏆</Text>
-                    <Text style={styles.actionText}>Leaderboards</Text>
+                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Leaderboards</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                     style={styles.actionButton}
                     onPress={() => router.push('/(tabs)/friends')}
                 >
                     <Text style={styles.actionIcon}>👥</Text>
-                    <Text style={styles.actionText}>Friends</Text>
+                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Friends</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                     style={styles.actionButton}
                     onPress={() => router.push('/wagers')}
                 >
                     <Text style={styles.actionIcon}>⚔️</Text>
-                    <Text style={styles.actionText}>Wagers</Text>
+                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Wagers</Text>
                 </TouchableOpacity>
             </View>
         </ScrollView>
@@ -238,8 +249,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#0a0a1a',
-        padding: 24,
+    },
+    content: {
+        flexGrow: 1,
+        paddingHorizontal: 24,
         paddingTop: 80,
+        paddingBottom: 24,
     },
     header: {
         marginBottom: 24,
@@ -290,18 +305,19 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#1a1a3a',
         borderRadius: 16,
-        padding: 14,
+        paddingVertical: 20,
+        paddingHorizontal: 14,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#2a2a5a',
     },
     statIcon: {
-        fontSize: 20,
-        marginBottom: 4,
+        fontSize: 26,
+        marginBottom: 6,
     },
     statValue: {
         color: '#ffffff',
-        fontSize: 18,
+        fontSize: 22,
         fontWeight: 'bold',
         marginBottom: 2,
     },
@@ -311,6 +327,8 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     card: {
+        flexGrow: 1,
+        justifyContent: 'center',
         backgroundColor: '#121224',
         borderRadius: 24,
         padding: 24,
@@ -331,7 +349,7 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     cardTitle: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: '700',
         color: '#ffffff',
     },
@@ -357,7 +375,7 @@ const styles = StyleSheet.create({
     },
     cardButton: {
         backgroundColor: '#818cf8',
-        paddingVertical: 16,
+        paddingVertical: 18,
         borderRadius: 16,
         alignItems: 'center',
     },
@@ -389,19 +407,22 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#121224',
         borderRadius: 16,
-        padding: 16,
+        paddingVertical: 20,
+        paddingHorizontal: 6,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#1f1f3a',
     },
     actionIcon: {
-        fontSize: 24,
+        fontSize: 31, // 30% larger than the previous 24
         marginBottom: 8,
     },
     actionText: {
         color: '#ffffff',
         fontSize: 12,
         fontWeight: '600',
+        textAlign: 'center',
+        alignSelf: 'stretch',
     },
     invitesSection: {
         marginBottom: 24,
