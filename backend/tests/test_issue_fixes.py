@@ -885,3 +885,188 @@ def test_daily_arena_navigation_logic():
         "Active arena with no active round must fall back to lobby"
     assert navigate('pending', rounds_r1_active) == '/arena/lobby', \
         "Pending arena must fall back to lobby"
+
+# ====================================================
+# ISSUE 2 (Round 3): Custom Arena timeout state machine
+# ====================================================
+# All tests are BACKEND-BEHAVIORAL: they exercise the real ScoringService.check_round_complete()
+# with mocked DB calls, covering every combination described in the implementation plan.
+#
+# Transaction model note
+# ----------------------
+# check_round_complete opens its OWN transaction via `async with self.conn.transaction()`.
+# The mock conn.transaction() uses AsyncContextManagerMock so the WITH block executes normally.
+# This lets us verify the full logic path without a live database.
+
+def _make_attempt(user_id, status):
+    m = Mock()
+    m.user_id = UUID(user_id)
+    m.status = status
+    return m
+
+def _make_participant(user_id, status="active"):
+    m = Mock()
+    m.user_id = UUID(user_id)
+    m.status = status
+    return m
+
+
+def _build_scoring_service(
+    *,
+    round_status: str,
+    ends_at_delta_seconds: float,
+    participants_statuses: list,
+    attempt_statuses: list,
+):
+    """
+    Build a ScoringService with all repositories mocked for unit-testing
+    check_round_complete in isolation.
+    """
+    from app.services.scoring_service import ScoringService
+
+    conn_mock = AsyncMock()
+    conn_mock.transaction = Mock(return_value=AsyncContextManagerMock())
+
+    now = datetime.now(timezone.utc)
+    ends_at = now + timedelta(seconds=ends_at_delta_seconds)
+
+    conn_mock.fetchrow = AsyncMock(return_value={"status": round_status, "ends_at": ends_at})
+    conn_mock.execute = AsyncMock()
+
+    service = ScoringService(conn_mock)
+
+    user_ids = [str(uuid4()) for _ in participants_statuses]
+    participants = [_make_participant(uid, st) for uid, st in zip(user_ids, participants_statuses)]
+    attempts    = [_make_attempt(uid, st)    for uid, st in zip(user_ids, attempt_statuses)]
+
+    service.participant_repo.get_participants_for_arena = AsyncMock(return_value=participants)
+    service.attempt_repo.get_attempts_for_round         = AsyncMock(return_value=attempts)
+    service.advance_round                               = AsyncMock()
+
+    return service, conn_mock, user_ids
+
+
+def test_timeout_all_submitted_advances():
+    """BACKEND-BEHAVIORAL Comb 1: all submitted, round not expired -> advance."""
+    service, conn_mock, _ = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=+30,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["submitted", "submitted"],
+    )
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    service.advance_round.assert_called_once()
+    assert not any("timed_out" in str(c) for c in conn_mock.execute.call_args_list), \
+        "timed_out bulk UPDATE must not fire when round has not expired"
+
+
+def test_timeout_one_submitted_one_timed_out_advances():
+    """BACKEND-BEHAVIORAL Comb 2: one submitted + one already timed_out -> advance."""
+    service, _, _ = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=+30,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["submitted", "timed_out"],
+    )
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    service.advance_round.assert_called_once()
+
+
+def test_timeout_one_in_progress_not_expired_no_advance():
+    """BACKEND-BEHAVIORAL Comb 3: one submitted + one in_progress, not expired -> no advance."""
+    service, conn_mock, _ = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=+30,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["submitted", "in_progress"],
+    )
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    service.advance_round.assert_not_called()
+    assert not any("timed_out" in str(c) for c in conn_mock.execute.call_args_list)
+
+
+def test_timeout_all_in_progress_not_expired_no_advance():
+    """BACKEND-BEHAVIORAL Comb 4: all in_progress, not expired -> no advance."""
+    service, _, _ = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=+60,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["in_progress", "in_progress"],
+    )
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    service.advance_round.assert_not_called()
+
+
+def test_timeout_expired_marks_timed_out_then_advances():
+    """
+    BACKEND-BEHAVIORAL Comb 5: PRIMARY REGRESSION TEST.
+    Round expired; Player A submitted, Player B in_progress.
+    Bulk-UPDATE fires BEFORE terminal check so all_terminal becomes True and round advances.
+    This is the exact scenario that caused the stuck 'Loading next round' UI.
+    """
+    service, conn_mock, user_ids = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=-1,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["submitted", "in_progress"],
+    )
+    # Simulate re-read after bulk UPDATE: Player B is now timed_out
+    service.attempt_repo.get_attempts_for_round = AsyncMock(return_value=[
+        _make_attempt(user_ids[0], "submitted"),
+        _make_attempt(user_ids[1], "timed_out"),
+    ])
+    arena_id, round_id = uuid4(), uuid4()
+    asyncio.run(service.check_round_complete(arena_id, round_id))
+    timed_out_calls = [c for c in conn_mock.execute.call_args_list if "timed_out" in str(c)]
+    assert len(timed_out_calls) == 1, "Exactly one timed_out bulk UPDATE must be issued"
+    service.advance_round.assert_called_once_with(arena_id, round_id)
+
+
+def test_timeout_expired_all_in_progress_advances():
+    """BACKEND-BEHAVIORAL Comb 6: round expired, all in_progress -> bulk timed_out then advance."""
+    service, conn_mock, user_ids = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=-5,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["in_progress", "in_progress"],
+    )
+    service.attempt_repo.get_attempts_for_round = AsyncMock(return_value=[
+        _make_attempt(uid, "timed_out") for uid in user_ids
+    ])
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    timed_out_calls = [c for c in conn_mock.execute.call_args_list if "timed_out" in str(c)]
+    assert len(timed_out_calls) == 1
+    service.advance_round.assert_called_once()
+
+
+def test_timeout_already_completed_is_no_op():
+    """BACKEND-BEHAVIORAL Comb 7: round status != active -> idempotent no-op."""
+    service, conn_mock, _ = _build_scoring_service(
+        round_status="completed", ends_at_delta_seconds=-5,
+        participants_statuses=["active"],
+        attempt_statuses=["submitted"],
+    )
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    service.advance_round.assert_not_called()
+    assert not any("timed_out" in str(c) for c in conn_mock.execute.call_args_list)
+
+
+def test_timeout_single_player_expired_advances():
+    """BACKEND-BEHAVIORAL Comb 8: Daily Arena solo player, expired in_progress -> timed_out then advance."""
+    service, conn_mock, user_ids = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=-2,
+        participants_statuses=["active"],
+        attempt_statuses=["in_progress"],
+    )
+    service.attempt_repo.get_attempts_for_round = AsyncMock(return_value=[
+        _make_attempt(user_ids[0], "timed_out")
+    ])
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    timed_out_calls = [c for c in conn_mock.execute.call_args_list if "timed_out" in str(c)]
+    assert len(timed_out_calls) == 1
+    service.advance_round.assert_called_once()
+
+
+def test_timeout_void_attempt_is_terminal():
+    """BACKEND-BEHAVIORAL Comb 9: void status is terminal -> round advances."""
+    service, _, _ = _build_scoring_service(
+        round_status="active", ends_at_delta_seconds=+30,
+        participants_statuses=["active", "active"],
+        attempt_statuses=["submitted", "void"],
+    )
+    asyncio.run(service.check_round_complete(uuid4(), uuid4()))
+    service.advance_round.assert_called_once()

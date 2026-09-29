@@ -85,10 +85,11 @@ class AttemptService:
                 attempt_data['points_awarded'] = score.total_points
                 attempt = AttemptResponse(**attempt_data)
 
-            # Check for round completion
-            await scoring_service.check_round_complete(arena_id, round_id)
+        # check_round_complete runs OUTSIDE the submission transaction so it sees
+        # the committed attempt row and can open its own transaction with FOR UPDATE.
+        await scoring_service.check_round_complete(arena_id, round_id)
 
-            return attempt
+        return attempt
 
     async def get_attempts(self, arena_id: UUID, round_id: UUID, user_id: str) -> List[AttemptResponse]:
         arena = await self.arena_repo.get_arena(arena_id)

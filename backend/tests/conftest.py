@@ -63,17 +63,28 @@ async def create_user_in_db(user_id: str):
     except Exception:
         pass  # allow offline testing
 
+async def delete_user_from_db(user_id: str):
+    """Remove a test user row. ON DELETE CASCADE on profiles handles dependent rows."""
+    try:
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
+        await conn.execute("DELETE FROM auth.users WHERE id = $1", user_id)
+        await conn.close()
+    except Exception:
+        pass  # Best-effort: offline or already removed
+
 @pytest.fixture(scope="module")
 def test_user_1():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 @pytest.fixture(scope="module")
 def test_user_2():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 @pytest.fixture(scope="module")
 def test_user_1_headers(test_user_1):

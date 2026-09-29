@@ -44,45 +44,82 @@ class ScoringService:
         return await self.score_repo.create_score(arena_id, round_id, user_id, points_earned, bonus_points)
 
     async def check_round_complete(self, arena_id: UUID, round_id: UUID):
-        # We need to lock the round so that concurrent submissions don't both advance the round
-        row = await self.conn.fetchrow("SELECT status FROM arena_rounds WHERE id = $1 FOR UPDATE", str(round_id))
-        if not row or row['status'] != 'active':
-            return # Already completed or not active
+        """
+        Determine whether the round should advance, and advance it if so.
 
-        # Count active participants
-        participants = await self.participant_repo.get_participants_for_arena(arena_id)
-        active_user_ids = [p.user_id for p in participants if p.status == 'active']
+        This method MUST be called outside of any existing transaction — it opens
+        its own transaction so that FOR UPDATE actually serializes concurrent calls
+        (FOR UPDATE is a no-op in autocommit mode).
 
-        # Get attempts for this round
-        attempts = await self.attempt_repo.get_attempts_for_round(round_id)
-        
-        # A round completes if all active participants have submitted a correct answer or timed_out
-        # In our logic, an attempt is terminal if status in ('submitted', 'timed_out', 'void') 
-        # (submitted here means correct, since incorrect leaves it in_progress)
-        all_terminal = True
-        for user_id in active_user_ids:
-            user_attempt = next((a for a in attempts if str(a.user_id) == str(user_id)), None)
-            if not user_attempt or user_attempt.status not in ('submitted', 'timed_out', 'void'):
-                all_terminal = False
-                break
-                
-        # We don't check time expiry here, because that's handled by a separate background task or before this call.
-        if all_terminal:
-            await self.advance_round(arena_id, round_id)
+        Ordering guarantee
+        ------------------
+        1. Lock the round row with FOR UPDATE inside the transaction.
+        2. If the round's ends_at has passed, immediately mark all remaining
+           in_progress attempts as timed_out.  This ensures timed-out players
+           are counted as terminal before the completeness check runs.
+        3. Re-read attempts (reflecting any just-applied timed_out updates).
+        4. If every active participant now has a terminal attempt
+           (submitted / timed_out / void), call advance_round.
+        5. If the round is not yet expired and not all players are terminal,
+           do nothing — a later submission or the timeout task will re-trigger.
+        """
+        async with self.conn.transaction():
+            # Step 1 — Lock the round row so concurrent callers queue here.
+            row = await self.conn.fetchrow(
+                "SELECT status, ends_at FROM arena_rounds WHERE id = $1 FOR UPDATE",
+                str(round_id)
+            )
+            if not row or row['status'] != 'active':
+                return  # Already completed, cancelled, or non-existent — nothing to do.
+
+            now = datetime.now(timezone.utc)
+
+            # Step 2 — If the round timer has expired, mark all still-in-progress
+            # attempts as timed_out NOW, before the terminal check.  Without this
+            # step, a player who never submitted would leave their attempt in
+            # in_progress indefinitely, causing all_terminal to remain False and
+            # the round to never advance.
+            if row['ends_at'] and now >= row['ends_at']:
+                await self.conn.execute(
+                    """
+                    UPDATE arena_attempts
+                    SET status = 'timed_out',
+                        submitted_at = now(),
+                        updated_at   = now()
+                    WHERE round_id = $1
+                      AND status   = 'in_progress'
+                    """,
+                    str(round_id)
+                )
+
+            # Step 3 — Re-read participants and attempts (attempts may have just
+            # been updated to timed_out in step 2).
+            participants = await self.participant_repo.get_participants_for_arena(arena_id)
+            active_user_ids = [p.user_id for p in participants if p.status == 'active']
+
+            attempts = await self.attempt_repo.get_attempts_for_round(round_id)
+
+            # Step 4 — A round completes if every active participant has a terminal
+            # attempt: submitted, timed_out, or void.
+            all_terminal = True
+            for uid in active_user_ids:
+                user_attempt = next(
+                    (a for a in attempts if str(a.user_id) == str(uid)), None
+                )
+                if not user_attempt or user_attempt.status not in ('submitted', 'timed_out', 'void'):
+                    all_terminal = False
+                    break
+
+            # Step 5 — Advance only when all players are in a terminal state.
+            if all_terminal:
+                await self.advance_round(arena_id, round_id)
             
     async def advance_round(self, arena_id: UUID, current_round_id: UUID):
-        # Mark current round as completed
+        # Mark current round as completed.
+        # NOTE: in_progress → timed_out is now handled by check_round_complete
+        # before this method is called, so no bulk-update is needed here.
         await self.round_repo.update_round_status(current_round_id, 'completed', complete_time=datetime.now(timezone.utc))
         
-        # Handle timed_out for attempts still in_progress
-        await self.conn.execute(
-            """
-            UPDATE arena_attempts 
-            SET status = 'timed_out', submitted_at = now(), updated_at = now()
-            WHERE round_id = $1 AND status = 'in_progress'
-            """,
-            str(current_round_id)
-        )
         
         # Check if there is a next round
         arena = await self.arena_repo.get_arena(arena_id)

@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase';
 import * as api from '@/lib/api';
 
 export interface LeaderboardEntry {
-  id: string;
+  id: string | null;   // leaderboard row UUID — null when the user has no scored row yet
+  user_id: string;     // profile/auth UUID — always present
   name: string;
   avatar: string;
   score: number;
@@ -56,7 +57,8 @@ export default function LeaderboardsScreen() {
       }
 
       const mappedData: LeaderboardEntry[] = rawData.map((item: any, index: number) => ({
-        id: item.id,
+        id: item.id ?? null,          // leaderboard row id — may be null for zero-score users
+        user_id: item.user_id,        // profile UUID — always non-null
         name: item.username || 'Unknown',
         avatar: item.avatar_url || '👤',
         score: item.score,
@@ -181,7 +183,7 @@ export default function LeaderboardsScreen() {
           </View>
         ) : (
           entries.map((entry, index) => (
-            <View key={entry.id} style={[
+            <View key={entry.user_id} style={[
               styles.entry,
               entry.isUser && styles.userEntry,
               index === 0 && styles.firstEntry,

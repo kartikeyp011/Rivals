@@ -76,40 +76,54 @@ async def create_user_in_db(user_id: str, username: str):
     """, user_id, f"{user_id}@example.com")
     await conn.execute("""
         INSERT INTO profiles (id, username, global_opt_in)
-        VALUES ($1, $2, TRUE)
+        VALUES ($1, $2, FALSE)
         ON CONFLICT DO NOTHING
     """, user_id, username)
     await conn.close()
+
+async def delete_user_from_db(user_id: str):
+    """Remove a test auth.users row; the ON DELETE CASCADE on profiles handles the rest."""
+    try:
+        conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
+        await conn.execute("DELETE FROM auth.users WHERE id = $1", user_id)
+        await conn.close()
+    except Exception:
+        pass  # Best-effort: offline or already cleaned
 
 @pytest.fixture(scope="module")
 def user_a():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id, f"usera_{user_id[:8]}"))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 @pytest.fixture(scope="module")
 def user_b():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id, f"userb_{user_id[:8]}"))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 @pytest.fixture(scope="module")
 def user_c():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id, f"userc_{user_id[:8]}"))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 @pytest.fixture(scope="module")
 def user_d():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id, f"userd_{user_id[:8]}"))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 @pytest.fixture(scope="module")
 def user_e():
     user_id = str(uuid4())
     asyncio.run(create_user_in_db(user_id, f"usere_{user_id[:8]}"))
-    return user_id
+    yield user_id
+    asyncio.run(delete_user_from_db(user_id))
 
 def get_auth_headers(user_id: str):
     import jwt
