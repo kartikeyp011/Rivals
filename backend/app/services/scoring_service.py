@@ -180,7 +180,9 @@ class ScoringService:
             uid = str(s.user_id)
             if uid in user_totals:
                 user_totals[uid] += s.total_points
-                user_rounds_won[uid] += 1 # Any score means a correct answer in a round
+                # Wrong answers also get a score row (0 points), so only count real points.
+                if s.points_earned > 0:
+                    user_rounds_won[uid] += 1
                 
         # Rank them
         sorted_users = sorted(user_totals.items(), key=lambda x: x[1], reverse=True)
@@ -243,3 +245,24 @@ class ScoringService:
             from app.services.wager_service import WagerService
             wager_service = WagerService(self.conn)
             await wager_service.resolve_wager(arena_id)
+
+            # Record what each player actually won (daily reward + wager winnings) so the
+            # results screen can show it. Runs after wager resolution so payouts are included.
+            await self.conn.execute(
+                """
+                UPDATE arena_results r
+                SET coins_awarded = COALESCE((
+                    SELECT SUM(l.amount)
+                    FROM coin_ledger l
+                    WHERE l.user_id = r.user_id
+                      AND l.type = 'credit'
+                      AND (
+                        (l.reason = 'daily_reward' AND l.reference_id = r.arena_id)
+                        OR (l.reason = 'arena_wager_won'
+                            AND l.reference_id IN (SELECT w.id FROM wagers w WHERE w.arena_id = r.arena_id))
+                      )
+                ), 0)
+                WHERE r.arena_id = $1
+                """,
+                arena_id
+            )

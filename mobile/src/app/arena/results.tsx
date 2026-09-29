@@ -9,6 +9,8 @@ export default function ArenaResultsScreen() {
   const arenaId = params.arenaId as string;
   const [result, setResult] = useState<any>(null);
   const [earnedCoins, setEarnedCoins] = useState(0);
+  const [derivedCorrect, setDerivedCorrect] = useState<number | null>(null);
+  const [derivedRounds, setDerivedRounds] = useState<number | null>(null);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -19,17 +21,50 @@ export default function ArenaResultsScreen() {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         
-        const [resultsData, streakData] = await Promise.all([
-          api.getArenaResults(arenaId).catch(() => []),
-          api.getStreak().catch(() => ({ current_streak: 0 }))
-        ]);
-        
-        const myResult = resultsData.find((r: any) => r.user_id === userId) || resultsData[0];
+        // The last round can finish before the server has written results (e.g. on a timeout),
+        // so retry for a while instead of showing an empty screen.
+        let myResult: any = null;
+        for (let attempt = 0; attempt < 10 && !myResult; attempt++) {
+          const resultsData = await api.getArenaResults(arenaId).catch(() => []);
+          myResult = resultsData.find((r: any) => r.user_id === userId) || null;
+          if (!myResult) await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+
+        const streakData = await api.getStreak().catch(() => ({ current_streak: 0 }));
         setResult(myResult);
         setCurrentStreak(streakData.current_streak || 0);
-        if (myResult) {
-          setEarnedCoins(myResult.coins_awarded);
+
+        // Work out correct answers and coins from the player's own attempts and coin history.
+        // These are the source of truth, so the screen is right even if the stored result
+        // row is stale or was written by an older backend version.
+        let coins = myResult?.coins_awarded || 0;
+        try {
+          const [rounds, txs, wagers] = await Promise.all([
+            api.getArenaRounds(arenaId),
+            api.getCoinTransactions().catch(() => []),
+            api.getWagers().catch(() => []),
+          ]);
+
+          const attemptLists = await Promise.all(
+            rounds.map((r: any) => api.getMyAttempts(arenaId, r.id).catch(() => []))
+          );
+          setDerivedRounds(rounds.length);
+          setDerivedCorrect(attemptLists.filter((list: any[]) => list.some((a) => a.is_correct === true)).length);
+
+          const wager = wagers.find((w: any) => w.arena_id === arenaId);
+          const derivedCoins = txs
+            .filter((t: any) =>
+              t.type === 'credit' && (
+                (t.reason === 'daily_reward' && t.reference_id === arenaId) ||
+                (t.reason === 'arena_wager_won' && wager && t.reference_id === wager.id)
+              )
+            )
+            .reduce((sum: number, t: any) => sum + t.amount, 0);
+          coins = Math.max(coins, derivedCoins);
+        } catch (e) {
+          console.error('Failed to derive result details', e);
         }
+        setEarnedCoins(coins);
       } catch (err) {
         console.error('Failed to load arena results', err);
       } finally {
@@ -42,14 +77,17 @@ export default function ArenaResultsScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: '#fff' }}>Loading results...</Text>
+        <Text style={{ color: '#fff' }}>Calculating results...</Text>
       </View>
     );
   }
 
   const totalScore = result?.total_score || 0;
-  const percentage = Math.min(100, Math.round((totalScore / 450) * 100)); // Default max possible 450
-  const correctCount = result?.rounds_won || 0;
+  const roundsPlayed = derivedRounds ?? (result?.rounds_played || 0);
+  const MAX_POINTS_PER_ROUND = 150; // 100 base + up to 50 speed bonus
+  const maxPossible = roundsPlayed * MAX_POINTS_PER_ROUND;
+  const percentage = maxPossible > 0 ? Math.min(100, Math.round((totalScore / maxPossible) * 100)) : 0;
+  const correctCount = derivedCorrect ?? (result?.rounds_won || 0);
 
   const getGrade = () => {
     if (percentage >= 80) return { label: '🏆 Excellent!', color: '#fdcb6e' };
@@ -79,7 +117,7 @@ export default function ArenaResultsScreen() {
           </View>
           <Text style={styles.percentageText}>{percentage}%</Text>
         </View>
-        <Text style={styles.correctCount}>{correctCount} of 3 correct</Text>
+        <Text style={styles.correctCount}>{correctCount} of {roundsPlayed} correct</Text>
       </View>
 
       {/* Round Breakdown */}
@@ -103,7 +141,7 @@ export default function ArenaResultsScreen() {
             <Text style={styles.roundName}>Rounds Won</Text>
           </View>
           <View style={styles.roundResult}>
-            <Text style={styles.roundPoints}>{result?.rounds_won || 0} / {result?.rounds_played || 0}</Text>
+            <Text style={styles.roundPoints}>{correctCount} / {roundsPlayed}</Text>
           </View>
         </View>
       </View>
@@ -111,9 +149,11 @@ export default function ArenaResultsScreen() {
       {/* Coin Reward Card */}
       <View style={styles.rewardCard}>
         <Text style={styles.rewardEmoji}>🪙</Text>
-        <Text style={styles.rewardText}>Coins Earned!</Text>
+        <Text style={styles.rewardText}>{earnedCoins > 0 ? 'Coins Won!' : 'No Coins This Time'}</Text>
         <Text style={styles.rewardSubtext}>
-          +{earnedCoins} coins for completing the Arena
+          {earnedCoins > 0
+            ? `+${earnedCoins} coins from rewards and wager winnings`
+            : 'Complete the Daily Arena or win a wager to earn coins'}
         </Text>
       </View>
 
