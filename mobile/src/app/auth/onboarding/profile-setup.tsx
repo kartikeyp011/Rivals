@@ -126,10 +126,10 @@ export default function ProfileSetupScreen() {
         <Text style={styles.label}>Rivals Username</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. puzzle_master_99"
+          placeholder="e.g. PuzzleMaster_99"
           placeholderTextColor="#555"
           value={username}
-          onChangeText={(text) => setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+          onChangeText={(text) => setUsername(text.replace(/[^a-zA-Z0-9_]/g, ''))}
           autoCapitalize="none"
           autoCorrect={false}
         />
