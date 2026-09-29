@@ -374,6 +374,27 @@ export async function declineWager(wagerId: string, idempotencyKey: string) {
   return res.json();
 }
 
+// Rivals+ weekly bonus
+export async function claimWeeklyBonus() {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/subscriptions/rivals-plus/weekly-bonus/claim`, {
+    method: 'POST',
+    headers,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || 'Failed to claim weekly bonus');
+  }
+  return res.json() as Promise<{
+    claimed: boolean;
+    already_claimed: boolean;
+    coins_awarded: number;
+    balance: number;
+    period_start: string;
+    period_end: string;
+  }>;
+}
+
 // 16. Account API
 export async function deleteAccount() {
   const headers = await getAuthHeaders();

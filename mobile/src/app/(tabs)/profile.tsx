@@ -19,6 +19,7 @@ export default function ProfileScreen() {
     // RevenueCat State
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
+    const [isClaimingBonus, setIsClaimingBonus] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -113,6 +114,29 @@ export default function ProfileScreen() {
         } catch (e: any) {
             console.error("Paywall error", e);
             Alert.alert("Error", e.message || "Failed to open subscription.");
+        }
+    };
+
+    const handleClaimWeeklyBonus = async () => {
+        if (isClaimingBonus) return;
+        try {
+            setIsClaimingBonus(true);
+            const res = await api.claimWeeklyBonus();
+            setCoins(res.balance);
+            if (res.claimed) {
+                Alert.alert("Weekly Bonus Claimed", `+${res.coins_awarded} coins added to your balance!`);
+            } else {
+                Alert.alert("Already Claimed", "You've already claimed this week's bonus. Come back next week!");
+            }
+        } catch (e: any) {
+            const msg: string = e?.message || '';
+            if (msg.toLowerCase().includes('subscription required')) {
+                Alert.alert("Still Syncing", "Your subscription is still syncing. Please try again in a minute.");
+            } else {
+                Alert.alert("Couldn't Claim Bonus", msg || "Please try again in a moment.");
+            }
+        } finally {
+            setIsClaimingBonus(false);
         }
     };
 
@@ -233,6 +257,19 @@ export default function ProfileScreen() {
                         </>
                     )}
                 </TouchableOpacity>
+                {isSubscribed && !isLoadingSubscription && (
+                    <TouchableOpacity
+                        style={[styles.claimButton, isClaimingBonus && { opacity: 0.6 }]}
+                        onPress={handleClaimWeeklyBonus}
+                        disabled={isClaimingBonus}
+                    >
+                        {isClaimingBonus ? (
+                            <ActivityIndicator color="#0a0a1a" />
+                        ) : (
+                            <Text style={styles.claimButtonText}>🪙 Claim Weekly Bonus</Text>
+                        )}
+                    </TouchableOpacity>
+                )}
             </View>
 
             <View style={styles.card}>
@@ -349,6 +386,18 @@ const styles = StyleSheet.create({
     premiumCard: {
         borderColor: '#fdcb6e',
         backgroundColor: '#1a1a2a',
+    },
+    claimButton: {
+        marginTop: 14,
+        backgroundColor: '#fdcb6e',
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    claimButtonText: {
+        color: '#0a0a1a',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     subscribedCard: {
         borderColor: '#00b894',
