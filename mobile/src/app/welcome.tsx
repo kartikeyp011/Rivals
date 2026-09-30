@@ -2,13 +2,15 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { router } from 'expo-router';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAppleAuth } from '../hooks/useAppleAuth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WelcomeScreen() {
   const { signIn: signInGoogle, loading: loadingGoogle } = useGoogleAuth();
   const { signIn: signInApple, loading: loadingApple } = useAppleAuth();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.content}>
         <Text style={styles.emoji}>⚔️</Text>
         <Text style={styles.title}>Rivals</Text>

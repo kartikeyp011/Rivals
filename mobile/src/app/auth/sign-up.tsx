@@ -5,8 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAppleAuth } from '../../hooks/useAppleAuth';
 import { useGoogleAuth } from '../../hooks/useGoogleAuth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SignUpScreen() {
+  const insets = useSafeAreaInsets();
   const { signIn: signInApple, loading: loadingApple } = useAppleAuth();
   const { signIn: signInGoogle, loading: loadingGoogle } = useGoogleAuth();
   const [email, setEmail] = useState('');
@@ -137,7 +139,7 @@ export default function SignUpScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.signInLink}
+          style={[styles.signInLink, { marginBottom: Math.max(20, insets.bottom + 20) }]}
           onPress={() => router.push('/auth/sign-in')}
         >
           <Text style={styles.signInLinkText}>

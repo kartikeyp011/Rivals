@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import * as api from '@/lib/api';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface Friend {
   id: string;
@@ -15,6 +16,7 @@ type WagerType = '1v1' | 'multi';
 type StakeAmount = 10 | 25 | 50;
 
 export default function CreateWagerScreen() {
+  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [wagerType, setWagerType] = useState<WagerType>('1v1');
@@ -207,6 +209,7 @@ export default function CreateWagerScreen() {
           style={[
             styles.createButton,
             (selectedFriends.length === 0 || (wagerType === '1v1' && selectedFriends.length !== 1) || submitting) && styles.createButtonDisabled,
+            { marginBottom: Math.max(40, insets.bottom + 20) }
           ]}
           onPress={handleCreate}
           disabled={selectedFriends.length === 0 || (wagerType === '1v1' && selectedFriends.length !== 1) || submitting}
