@@ -49,11 +49,12 @@ export default function LeaderboardsScreen() {
       
       const now = new Date();
       const periodKey = timeType === 'daily' ? now.toISOString().split('T')[0] : 'all_time';
+      const backendPeriod = timeType === 'daily' ? 'daily' : 'all_time';
 
       if (activeTab === 'friends') {
-        rawData = await api.getFriendsLeaderboard(timeType, periodKey);
+        rawData = await api.getFriendsLeaderboard(backendPeriod, periodKey);
       } else {
-        rawData = await api.getGlobalLeaderboard(timeType, periodKey);
+        rawData = await api.getGlobalLeaderboard(backendPeriod, periodKey);
       }
 
       const mappedData: LeaderboardEntry[] = rawData.map((item: any, index: number) => ({
