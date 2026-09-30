@@ -94,12 +94,12 @@ def test_wager_lifecycle_and_payout(client, test_user_1, test_user_1_headers, te
     # Invite and accept
     idem_key2 = str(uuid4())
     test_user_1_headers["Idempotency-Key"] = idem_key2
-    res = client.post(f"/arenas/{arena_id}/invites", json={"invitee_id": test_user_2}, headers=test_user_1_headers)
+    res = client.post(f"/api/v1/arenas/{arena_id}/invites", json={"invitee_id": test_user_2}, headers=test_user_1_headers)
     invite_id = res.json()["id"]
     
     idem_key3 = str(uuid4())
     test_user_2_headers["Idempotency-Key"] = idem_key3
-    res = client.post(f"/invites/{invite_id}/respond", json={"accept": True}, headers=test_user_2_headers)
+    res = client.post(f"/api/v1/invites/{invite_id}/respond", json={"accept": True}, headers=test_user_2_headers)
 
     # Create Wager
     wager_payload = {
@@ -243,12 +243,12 @@ def test_wager_cancellation_refund(client, test_user_1, test_user_1_headers, tes
     # Invite and accept
     idem_key2 = str(uuid4())
     test_user_1_headers["Idempotency-Key"] = idem_key2
-    res = client.post(f"/arenas/{arena_id}/invites", json={"invitee_id": test_user_2}, headers=test_user_1_headers)
+    res = client.post(f"/api/v1/arenas/{arena_id}/invites", json={"invitee_id": test_user_2}, headers=test_user_1_headers)
     invite_id = res.json()["id"]
     
     idem_key3 = str(uuid4())
     test_user_2_headers["Idempotency-Key"] = idem_key3
-    res = client.post(f"/invites/{invite_id}/respond", json={"accept": True}, headers=test_user_2_headers)
+    res = client.post(f"/api/v1/invites/{invite_id}/respond", json={"accept": True}, headers=test_user_2_headers)
 
     # Create Wager
     wager_payload = {

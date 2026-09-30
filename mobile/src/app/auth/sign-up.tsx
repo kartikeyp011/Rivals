@@ -36,8 +36,14 @@ export default function SignUpScreen() {
     if (error) {
       Alert.alert('Sign Up Error', error.message);
     } else if (data.session) {
+      const analyticsModule = require('@react-native-firebase/analytics');
+      const analytics = analyticsModule.default || analyticsModule;
+      analytics().logEvent('sign_up', { method: 'email' }).catch(console.error);
       router.push({ pathname: '/auth/onboarding/profile-setup', params: { initialName: name } });
     } else {
+      const analyticsModule = require('@react-native-firebase/analytics');
+      const analytics = analyticsModule.default || analyticsModule;
+      analytics().logEvent('sign_up', { method: 'email_pending' }).catch(console.error);
       Alert.alert('Check your email', 'Please confirm your email address to continue.');
     }
   };

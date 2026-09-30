@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { getArenaConfigOptions, createArena } from '../../lib/api';
-import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { useAdVisibility } from '../../hooks/useAdVisibility';
+import { useRewardedAd } from '../../hooks/useRewardedAd';
 
 export default function CreateArenaScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { isAdFree } = useAdVisibility();
+  const { showRewardedAd, isShowing } = useRewardedAd();
 
   const [config, setConfig] = useState<any>(null);
 
@@ -53,21 +57,43 @@ export default function CreateArenaScreen() {
       if (difficulty) payload.difficulty = difficulty;
 
       const idempotencyKey = uuidv4();
-      const arena = await createArena(payload, idempotencyKey);
 
-      // Navigate to arena lobby
-      router.replace(`/arena/${arena.id}` as any);
+      const proceedWithCreation = async (adIntentId?: string) => {
+        try {
+          const arena = await createArena(payload, idempotencyKey, adIntentId);
+          router.replace(`/arena/${arena.id}` as any);
+        } catch (err: any) {
+          setError(err.message || 'Failed to create arena');
+          setSubmitting(false);
+        }
+      };
+
+      if (!isAdFree) {
+        await showRewardedAd(
+          'create_arena',
+          (intentId) => proceedWithCreation(intentId),
+          (err) => {
+            setError(err.message || 'Ad was not completed.');
+            setSubmitting(false);
+          }
+        );
+      } else {
+        await proceedWithCreation();
+      }
+
     } catch (err: any) {
-      setError(err.message || 'Failed to create arena');
+      setError(err.message || 'Failed to initialize creation');
       setSubmitting(false);
     }
   };
 
-  if (loading) {
+  if (loading || isShowing) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#6c5ce7" />
-        <Text style={styles.loadingText}>Loading options...</Text>
+        <Text style={styles.loadingText}>
+          {isShowing ? 'Loading Ad...' : 'Loading options...'}
+        </Text>
       </View>
     );
   }

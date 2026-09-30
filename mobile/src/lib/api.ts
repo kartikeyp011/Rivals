@@ -9,10 +9,21 @@ if (!API_BASE_URL) {
 }
 
 // Helper to get auth headers
+const logAnalyticsEvent = async (eventName: string, params?: any) => {
+  try {
+    const analyticsModule = require('@react-native-firebase/analytics');
+    const analytics = analyticsModule.default || analyticsModule;
+    await analytics().logEvent(eventName, params);
+  } catch (e) {
+    // Ignore errors in Expo Go or if unsupported
+  }
+};
+
 export async function getAuthHeaders(idempotencyKey?: string) {
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Client-Version': '2',
   };
 
   if (session?.access_token) {
@@ -26,6 +37,17 @@ export async function getAuthHeaders(idempotencyKey?: string) {
   return headers;
 }
 
+export async function createAdIntent(action: 'create_arena' | 'create_wager' | 'claim_reward') {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/ads/intent`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error('Failed to create ad intent');
+  return res.json();
+}
+
 // 1. Config Options
 export async function getArenaConfigOptions() {
   const headers = await getAuthHeaders();
@@ -35,8 +57,9 @@ export async function getArenaConfigOptions() {
 }
 
 // 2. Create Arena
-export async function createArena(payload: any, idempotencyKey: string) {
+export async function createArena(payload: any, idempotencyKey: string, adIntentId?: string) {
   const headers = await getAuthHeaders(idempotencyKey);
+  if (adIntentId) headers['Ad-Intent-Id'] = adIntentId;
   const res = await fetch(`${API_BASE_URL}/api/v1/arenas`, {
     method: 'POST',
     headers,
@@ -46,7 +69,9 @@ export async function createArena(payload: any, idempotencyKey: string) {
     const errorData = await res.json();
     throw new Error(errorData.error?.message || 'Failed to create arena');
   }
-  return res.json();
+  const data = await res.json();
+  logAnalyticsEvent('create_arena');
+  return data;
 }
 
 // 3. Get Arena
@@ -88,7 +113,9 @@ export async function startArena(arenaId: string, idempotencyKey: string) {
     const errorData = await res.json();
     throw new Error(errorData.error?.message || 'Failed to start arena');
   }
-  return res.json();
+  const data = await res.json();
+  logAnalyticsEvent('level_start');
+  return data;
 }
 
 // 5. Get Arena Rounds
@@ -117,7 +144,9 @@ export async function submitAttempt(arenaId: string, roundId: string, selectedOp
     const errorData = await res.json();
     throw new Error(errorData.error?.message || 'Failed to submit attempt');
   }
-  return res.json();
+  const data = await res.json();
+  logAnalyticsEvent('level_end');
+  return data;
 }
 
 export async function getMyAttempts(arenaId: string, roundId: string) {
@@ -224,7 +253,11 @@ export async function respondToInvite(inviteId: string, accept: boolean, idempot
     const errorData = await res.json();
     throw new Error(errorData.error?.message || 'Failed to respond to invite');
   }
-  return res.json();
+  const data = await res.json();
+  if (accept) {
+    logAnalyticsEvent('join_group');
+  }
+  return data;
 }
 
 // 10. Participants API
@@ -334,8 +367,9 @@ export async function getWager(wagerId: string) {
   return res.json();
 }
 
-export async function createWager(payload: any, idempotencyKey: string) {
+export async function createWager(payload: any, idempotencyKey: string, adIntentId?: string) {
   const headers = await getAuthHeaders(idempotencyKey);
+  if (adIntentId) headers['Ad-Intent-Id'] = adIntentId;
   const res = await fetch(`${API_BASE_URL}/api/v1/wagers`, {
     method: 'POST',
     headers,

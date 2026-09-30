@@ -2377,3 +2377,55 @@ ull React keys when rendering multiple zero-score players in the friends leaderb
 * The full backend suite remains unverified. The backend pytest suite could not be completed because the current test configuration targets the remote Supabase pooler rather than an isolated test database. Repeated/aborted test runs encountered connection/locking problems, so the full suite was intentionally not rerun against that remote database.
 
 **Status:** Implementation complete. Test isolation fixes prevent future data leaks, the Custom Arena deadlock is fixed, and mobile React keys are stable.
+
+---
+
+## 22. Privacy and SDK Implementations (Verification Pass)
+
+### Firebase Analytics
+- **Usage:** Standard event tracking (`sign_up`, `login`, `create_arena`, `level_start`, `level_end`, `join_group`, `purchase`).
+- **Data Collection:** No explicit location or personal ID is transmitted by default. Event parameters are scrubbed of any PII, UUIDs, or text.
+- **Production Status:** ⚠️ **NOT READY.** The current `google-services.json` and `GoogleService-Info.plist` are dummy files to allow local builds. They must be completely replaced with the real Firebase project files before a production build. (Documented as required external configuration).
+
+### Sentry
+- **Usage:** Crash reporting and performance monitoring.
+- **Initialization:** Initialized in `src/app/_layout.tsx`. `sendDefaultPii` is explicitly set to `false`.
+- **Production Status:** ⚠️ **NOT READY.** While the DSN is configured via environment variable, `SENTRY_ORG`, `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN` (secret) are configured via environment variables but must be injected for EAS release builds.
+- **Dev-only Action:** A hidden Sentry test button is included on the Profile screen (`__DEV__` mode only).
+
+### AdMob & Google UMP Consent
+- **Usage:** Banners placed on non-gameplay screens for free users.
+- **Consent (ATT / UMP):** ✅ **IMPLEMENTED.** The Google UMP SDK evaluates consent requirements on app launch. AdMob is ONLY initialized if `AdsConsent.canRequestAds()` returns true. iOS App Tracking Transparency (ATT) is handled natively by the UMP flow via `NSUserTrackingUsageDescription`. A "Privacy Settings" button appears in the Profile tab dynamically if required by the user's jurisdiction.
+- **Production Status:** ⚠️ **PENDING REAL IDs.** `app.json` has been migrated to `app.config.ts`. AdMob now uses `process.env.EXPO_PUBLIC_ADMOB_APP_ID_ANDROID` and `EXPO_PUBLIC_ADMOB_APP_ID_IOS`, falling back to Google Test IDs in development or when env vars are missing. Real IDs must be provided during production builds.
+
+### RevenueCat
+- **Usage:** Subscription management (`rivals_plus` entitlement).
+- **Ad-Free Logic:** Users with the `rivals_plus` entitlement are treated as ad-free. AdVisibility logic is encapsulated in `src/hooks/useAdVisibility.tsx`.
+- **State Machine Verification:**
+  - `isAdFree` is cleared immediately on sign out.
+  - App restart reloads the entitlement securely.
+  - Ad banners only render if `!isAdFree && canRequestAds`.
+
+### Native Build Configuration
+- Android package remains `com.kartikeyp011.rivals`.
+- iOS bundle identifier remains `com.kartikeyp011.rivals`.
+- `app.config.ts` dynamically handles Sentry and AdMob variables.
+
+### Backward Compatibility Strategy
+- **Client Versioning:** Mobile app requests provide an `X-Client-Version` header (`2` for the newest version).
+- **Backend Routing:**
+  - If `X-Client-Version < 2` or is missing, legacy clients are allowed to create Arenas and Wagers without watching rewarded ads.
+  - If `X-Client-Version >= 2`, free users must provide an `Ad-Intent-Id` header (proof of SSV rewarded ad completion) to create Arenas and Wagers. Rivals+ users bypass this requirement via server-side entitlement checks.
+- **Rollout Mechanism:** This strategy enables safe backend deployments with new ad infrastructure, while preserving the user experience for older clients. The true monetization transition happens once users update their apps.
+
+### Security and Idempotency Updates
+- **Row Level Security (RLS):** `ad_intents` and `admob_ssv_events` have RLS enabled with no policies, blocking any direct insertions/reads from the mobile Supabase client and restricting access strictly to the FastAPI backend.
+- **Intent Expiration:** Ad intents automatically expire 30 minutes after creation. Expired intents are strictly rejected during consumption.
+- **SSV Key Cache:** AdMob ECDSA public keys are cached with a 24-hour TTL, dynamically fetching/refreshing keys to prevent stalls without server restarts.
+- **Reward Idempotency:** Awarding 60 coins is guarded by atomic updates and database primary key constraints (`admob_ssv_events.event_id`). Duplicate Google webhooks or client callbacks cannot trigger multiple reward payouts for the same intent.
+- **Coin Ledger Reason:** `rewarded_ad` is a dedicated coin ledger reason. The additive migration adds `rewarded_ad` to the PostgreSQL enum. Rewarded-ad coin rewards use `CoinLedgerReason.rewarded_ad`.
+
+### Stash Conflict Resolution
+- Safely restored WIP changes containing AdMob, Firebase, Sentry integration, backend ad services, and related UI configurations via `git stash apply`.
+- Resolved merge conflict in `mobile/src/app/wagers/create.tsx` safely keeping both `useSafeAreaInsets` and `useAdVisibility`/`useRewardedAd` hooks.
+- All stashed files confirmed present and successfully merged into the current working directory without dropping the stash backup.

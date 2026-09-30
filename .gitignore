@@ -44,3 +44,6 @@ out
 *.log
 .vercel
 next-env.d.ts
+
+# Logos
+logo/

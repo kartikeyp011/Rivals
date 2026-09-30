@@ -5,39 +5,53 @@ import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
+import * as Sentry from '@sentry/react-native';
+import mobileAds from 'react-native-google-mobile-ads';
+import { AdVisibilityProvider } from '../hooks/useAdVisibility';
+const analyticsModule = require('@react-native-firebase/analytics');
+const analytics = analyticsModule.default || analyticsModule;
 
-// RevenueCat public API key for iOS from environment variables
+// Sentry initialization
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  sendDefaultPii: false,
+});
+
+// RevenueCat public API keys from environment variables
 const RC_APPLE_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY || '';
+const RC_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY || '';
 
-export default function RootLayout() {
+function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false);
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (Platform.OS === 'ios') {
+
+    if (Platform.OS === 'ios' && RC_APPLE_API_KEY) {
       Purchases.configure({ apiKey: RC_APPLE_API_KEY });
+    } else if (Platform.OS === 'android' && RC_ANDROID_API_KEY) {
+      Purchases.configure({ apiKey: RC_ANDROID_API_KEY });
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setInitialized(true);
-      if (session?.user?.id && Platform.OS === 'ios') {
+      if (session?.user?.id) {
         Purchases.logIn(session.user.id).catch(console.error);
+        analytics().logEvent('login', { method: 'session_restore' }).catch(console.error);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (_event === 'SIGNED_IN' && session?.user?.id) {
-        if (Platform.OS === 'ios') {
-          Purchases.logIn(session.user.id).catch(console.error);
-        }
+        Purchases.logIn(session.user.id).catch(console.error);
+        analytics().logEvent('login', { method: 'auth_change' }).catch(console.error);
       } else if (_event === 'SIGNED_OUT') {
-        if (Platform.OS === 'ios') {
-          Purchases.logOut().catch(console.error);
-        }
+        Purchases.logOut().catch(console.error);
+        analytics().logEvent('logout').catch(console.error);
       }
     });
 
@@ -61,19 +75,23 @@ export default function RootLayout() {
   if (!initialized) return null;
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-      }}
-    >
-      <Stack.Screen name="welcome" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="arena" />
-      <Stack.Screen name="coins" />
-      <Stack.Screen name="streak" />
-      <Stack.Screen name="wagers" />
-    </Stack>
+    <AdVisibilityProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      >
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="arena" />
+        <Stack.Screen name="coins" />
+        <Stack.Screen name="streak" />
+        <Stack.Screen name="wagers" />
+      </Stack>
+    </AdVisibilityProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

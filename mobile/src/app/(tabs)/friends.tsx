@@ -5,6 +5,8 @@ import * as api from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { useAdVisibility } from '@/hooks/useAdVisibility';
+import { Platform } from 'react-native';
 
 type TabType = 'friends' | 'requests' | 'add';
 
@@ -15,6 +17,8 @@ export default function FriendsScreen() {
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const { isAdFree, canRequestAds } = useAdVisibility();
 
   const loadData = async () => {
     setLoading(true);

@@ -5,6 +5,8 @@ import * as api from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { useAdVisibility } from '@/hooks/useAdVisibility';
+import { Platform } from 'react-native';
 
 export default function HomeScreen() {
     const [coins, setCoins] = useState(0);
@@ -13,6 +15,7 @@ export default function HomeScreen() {
     const [globalRank, setGlobalRank] = useState<string>('--');
     const [friendsRank, setFriendsRank] = useState<string>('--');
     const [dailyArenaLoading, setDailyArenaLoading] = useState(false);
+    const { isAdFree, canRequestAds } = useAdVisibility();
 
     const loadInvites = async () => {
         try {
@@ -241,6 +244,7 @@ export default function HomeScreen() {
                     <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Wagers</Text>
                 </TouchableOpacity>
             </View>
+
         </ScrollView>
     );
 }

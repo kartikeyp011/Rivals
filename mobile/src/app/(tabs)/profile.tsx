@@ -7,6 +7,8 @@ import Purchases from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
 import * as api from '@/lib/api';
 import { supabase } from '../../lib/supabase';
+import { useAdVisibility } from '@/hooks/useAdVisibility';
+import { useRewardedAd } from '@/hooks/useRewardedAd';
 
 export default function ProfileScreen() {
     const [coins, setCoins] = useState(0);
@@ -29,6 +31,9 @@ export default function ProfileScreen() {
         const { data: { user } } = await supabase.auth.getUser();
         return user ? `weeklyBonusClaimedUntil:${user.id}` : null;
     };
+
+    const { isAdFree, canRequestAds, isPrivacyOptionsRequired, showPrivacyOptions } = useAdVisibility();
+    const { showRewardedAd, isShowing } = useRewardedAd();
 
     useFocusEffect(
         useCallback(() => {
@@ -127,6 +132,9 @@ export default function ProfileScreen() {
             const customerInfo = await Purchases.getCustomerInfo();
             if (typeof customerInfo.entitlements.active['rivals_plus'] !== 'undefined') {
                 setIsSubscribed(true);
+                const analyticsModule = require('@react-native-firebase/analytics');
+                const analytics = analyticsModule.default || analyticsModule;
+                analytics().logEvent('purchase', { items: [{ item_id: 'rivals_plus' }] }).catch(console.error);
             }
         } catch (e: any) {
             console.error("Paywall error", e);
@@ -178,6 +186,9 @@ export default function ProfileScreen() {
             const customerInfo = await Purchases.restorePurchases();
             if (typeof customerInfo.entitlements.active['rivals_plus'] !== 'undefined') {
                 setIsSubscribed(true);
+                const analyticsModule = require('@react-native-firebase/analytics');
+                const analytics = analyticsModule.default || analyticsModule;
+                analytics().logEvent('purchase', { items: [{ item_id: 'rivals_plus' }], method: 'restore' }).catch(console.error);
                 Alert.alert("Success", "Your Rivalss+ subscription has been restored.");
             } else {
                 Alert.alert("No Purchases Found", "We couldn't find any active subscriptions for your account.");
@@ -305,6 +316,34 @@ export default function ProfileScreen() {
                 )}
             </View>
 
+            {/* 60 Coins Rewarded Ad Button */}
+            {canRequestAds && (
+                <View style={styles.card}>
+                    <Text style={styles.cardTitle}>Free Coins</Text>
+                    <Text style={styles.cardText}>Watch a short ad to earn 60 bonus coins!</Text>
+                    <TouchableOpacity
+                        style={[styles.actionButton, { borderBottomWidth: 0, marginTop: 12, backgroundColor: '#6c5ce7', borderRadius: 8, alignItems: 'center' }]}
+                        onPress={() => {
+                            showRewardedAd(
+                                'claim_reward',
+                                () => {
+                                    Alert.alert('✅', 'You received 60 coins!');
+                                    setCoins(prev => prev + 60);
+                                },
+                                (err) => {
+                                    Alert.alert('❌', err.message || 'Ad was not completed.');
+                                }
+                            );
+                        }}
+                        disabled={isShowing}
+                    >
+                        <Text style={[styles.actionButtonText, { fontWeight: 'bold' }]}>
+                            {isShowing ? 'Loading Ad...' : 'Watch Ad for 60 Coins'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <View style={styles.card}>
                 <TouchableOpacity onPress={() => router.push('/coins/activity' as any)}>
                     <Text style={styles.cardTitle}>Coins</Text>
@@ -354,6 +393,21 @@ export default function ProfileScreen() {
                 <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={handleDeleteAccount} disabled={isDeleting}>
                     {isDeleting ? <ActivityIndicator color="#ff4757" /> : <Text style={styles.deleteButtonText}>Delete Account</Text>}
                 </TouchableOpacity>
+
+                {isPrivacyOptionsRequired && (
+                    <TouchableOpacity style={[styles.actionButton, { marginTop: 16 }]} onPress={showPrivacyOptions}>
+                        <Text style={styles.actionButtonText}>Privacy Settings</Text>
+                    </TouchableOpacity>
+                )}
+
+                {__DEV__ && (
+                    <TouchableOpacity
+                        style={[styles.actionButton, { borderColor: 'orange', borderWidth: 1, marginTop: 20 }]}
+                        onPress={() => { throw new Error("Sentry Test Error from Profile"); }}
+                    >
+                        <Text style={[styles.actionButtonText, { color: 'orange' }]}>Trigger Sentry Crash (Dev Only)</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </ScrollView>
         </View>

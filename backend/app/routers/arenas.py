@@ -7,6 +7,8 @@ from app.schemas.arena import ArenaCreate, ArenaResponse
 from app.services.arena_service import ArenaService
 from app.core.dependencies import get_current_user, get_db_connection
 from app.core.idempotency import IdempotencyManager
+from app.repositories.subscription_repository import SubscriptionRepository
+from app.services.ad_service import AdService
 
 router = APIRouter(prefix="/arenas", tags=["arenas"])
 
@@ -18,6 +20,8 @@ async def create_arena(
     data: ArenaCreate,
     request: Request,
     idempotency_key: str = Header(None, alias="Idempotency-Key"),
+    x_client_version: int = Header(1, alias="X-Client-Version"),
+    ad_intent_id: str = Header(None, alias="Ad-Intent-Id"),
     user_id: str = Depends(get_current_user),
     conn: Connection = Depends(get_db_connection),
     service: ArenaService = Depends(get_arena_service)
@@ -30,6 +34,20 @@ async def create_arena(
 
     await idem.lock_key(request.url.path, data.model_dump(mode='json'))
     
+    # Ad Gate for new clients
+    if x_client_version >= 2:
+        sub_repo = SubscriptionRepository(conn)
+        active_sub = await sub_repo.get_active_subscription(user_id, 'rivals_plus')
+        if not active_sub or active_sub['status'] != 'active':
+            # User is free, enforce ad requirement
+            if not ad_intent_id:
+                from app.core.errors import ForbiddenError
+                raise ForbiddenError("Rewarded ad completion required to create Custom Arena")
+
+            import uuid
+            ad_service = AdService(conn)
+            await ad_service.consume_intent(uuid.UUID(ad_intent_id), user_id, 'create_arena')
+
     # Process
     arena = await service.create_arena(user_id, data)
     

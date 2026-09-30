@@ -17,6 +17,7 @@ class CoinLedgerReason(str, Enum):
     daily_reward = 'daily_reward'
     admin_adjustment = 'admin_adjustment'
     weekly_bonus = 'weekly_bonus'
+    rewarded_ad = 'rewarded_ad'
 
 class CoinBalanceResponse(BaseModel):
     user_id: UUID

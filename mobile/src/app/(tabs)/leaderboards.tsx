@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import * as api from '@/lib/api';
+import { useAdVisibility } from '@/hooks/useAdVisibility';
+import { Platform } from 'react-native';
 
 export interface LeaderboardEntry {
   id: string | null;   // leaderboard row UUID — null when the user has no scored row yet
@@ -24,6 +26,8 @@ export default function LeaderboardsScreen() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const { isAdFree, canRequestAds } = useAdVisibility();
 
   const { tab } = useLocalSearchParams<{ tab: string }>();
 

@@ -2,9 +2,10 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIn
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import * as api from '@/lib/api';
-import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAdVisibility } from '@/hooks/useAdVisibility';
+import { useRewardedAd } from '@/hooks/useRewardedAd';
 
 export interface Friend {
   id: string;
@@ -23,6 +24,9 @@ export default function CreateWagerScreen() {
   const [stake, setStake] = useState<StakeAmount>(10);
   const [coins, setCoins] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  const { isAdFree } = useAdVisibility();
+  const { showRewardedAd, isShowing } = useRewardedAd();
 
   useEffect(() => {
     const loadData = async () => {
@@ -83,26 +87,55 @@ export default function CreateWagerScreen() {
       setSubmitting(true);
       const idempotencyKey = uuidv4();
       
-      const arena = await api.createArena({
-        max_rounds: 3,
-        max_participants: wagerType === '1v1' ? 2 : selectedFriends.length + 1,
-        time_limit_seconds: 30
-      }, idempotencyKey);
+      const proceedWithCreation = async (adIntentId?: string) => {
+        try {
+          const arena = await api.createArena({
+            max_rounds: 3,
+            max_participants: wagerType === '1v1' ? 2 : selectedFriends.length + 1,
+            time_limit_seconds: 30
+          }, idempotencyKey);
+
+          await api.createWager({ arena_id: arena.id, coin_amount: stake }, idempotencyKey, adIntentId);
+
+          for (const friendId of selectedFriends) {
+            await api.sendInvite(arena.id, friendId, uuidv4());
+          }
+
+          Alert.alert('✅', 'Wager created successfully!');
+          router.replace(`/arena/${arena.id}` as any);
+        } catch (err: any) {
+          Alert.alert('❌', err.message || 'Failed to create wager');
+          setSubmitting(false);
+        }
+      };
       
-      await api.createWager({ arena_id: arena.id, coin_amount: stake }, idempotencyKey);
-      
-      for (const friendId of selectedFriends) {
-        await api.sendInvite(arena.id, friendId, uuidv4());
+      if (!isAdFree) {
+        await showRewardedAd(
+          'create_wager',
+          (intentId) => proceedWithCreation(intentId),
+          (err) => {
+            Alert.alert('❌', err.message || 'Ad was not completed.');
+            setSubmitting(false);
+          }
+        );
+      } else {
+        await proceedWithCreation();
       }
-      
-      Alert.alert('✅', 'Wager created successfully!');
-      router.replace(`/arena/${arena.id}` as any);
+
     } catch (err: any) {
-      Alert.alert('❌', err.message || 'Failed to create wager');
-    } finally {
+      Alert.alert('❌', err.message || 'Failed to initialize wager creation');
       setSubmitting(false);
     }
   };
+
+  if (isShowing) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#FF3366" />
+        <Text style={styles.loadingText}>Loading Ad...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -228,6 +261,16 @@ export default function CreateWagerScreen() {
 }
 
 const styles = StyleSheet.create({
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0a0a1a',
+  },
+  loadingText: {
+    color: '#ffffff',
+    marginTop: 10,
+  },
   container: {
     flex: 1,
     backgroundColor: '#0a0a1a',
