@@ -9,52 +9,6 @@ from datetime import datetime, timezone
 from app.main import app
 from app.core.config import settings
 
-def generate_test_token(user_id: str, role: str = "authenticated"):
-    import jwt
-    from datetime import timedelta
-    secret = os.getenv("JWT_SECRET", "super-secret-jwt-token-with-at-least-32-characters-long")
-    payload = {
-        "sub": user_id,
-        "role": role,
-        "iat": int(datetime.now(timezone.utc).timestamp()),
-        "exp": int((datetime.now(timezone.utc) + timedelta(days=1)).timestamp())
-    }
-    return jwt.encode(payload, secret, algorithm="HS256")
-
-@pytest.fixture(scope="module")
-def client():
-    with TestClient(app) as c:
-        yield c
-
-async def create_user_in_db(user_id: str):
-    conn = await asyncpg.connect(settings.DATABASE_URL, statement_cache_size=0)
-    await conn.execute("""
-        INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
-        VALUES ('00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2, '', now(), now(), now(), '{}', '{}', now(), now(), '', '', '', '')
-        ON CONFLICT DO NOTHING
-    """, user_id, f"{user_id}@example.com")
-    await conn.close()
-
-@pytest.fixture(scope="module")
-def test_user_1():
-    user_id = str(uuid4())
-    asyncio.run(create_user_in_db(user_id))
-    return user_id
-
-@pytest.fixture(scope="module")
-def test_user_2():
-    user_id = str(uuid4())
-    asyncio.run(create_user_in_db(user_id))
-    return user_id
-
-@pytest.fixture(scope="module")
-def test_user_1_headers(test_user_1):
-    return {"Authorization": f"Bearer {generate_test_token(test_user_1)}"}
-
-@pytest.fixture(scope="module")
-def test_user_2_headers(test_user_2):
-    return {"Authorization": f"Bearer {generate_test_token(test_user_2)}"}
-
 def test_unlimited_attempts_and_scoring(client, test_user_1, test_user_1_headers, test_user_2, test_user_2_headers):
     # 1. Create a custom arena
     arena_payload = {
@@ -73,13 +27,13 @@ def test_unlimited_attempts_and_scoring(client, test_user_1, test_user_1_headers
     # 2. Add second user
     idem_key2 = str(uuid4())
     test_user_1_headers["Idempotency-Key"] = idem_key2
-    res = client.post(f"/arenas/{arena_id}/invites", json={"invitee_id": test_user_2}, headers=test_user_1_headers)
+    res = client.post(f"/api/v1/arenas/{arena_id}/invites", json={"invitee_id": test_user_2}, headers=test_user_1_headers)
     assert res.status_code == 201
     invite_id = res.json()["id"]
 
     idem_key3 = str(uuid4())
     test_user_2_headers["Idempotency-Key"] = idem_key3
-    res = client.post(f"/invites/{invite_id}/respond", json={"accept": True}, headers=test_user_2_headers)
+    res = client.post(f"/api/v1/invites/{invite_id}/respond", json={"accept": True}, headers=test_user_2_headers)
     assert res.status_code == 200
 
     # 3. Start arena

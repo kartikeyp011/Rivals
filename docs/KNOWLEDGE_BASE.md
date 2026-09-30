@@ -2429,3 +2429,13 @@ ull React keys when rendering multiple zero-score players in the friends leaderb
 - Safely restored WIP changes containing AdMob, Firebase, Sentry integration, backend ad services, and related UI configurations via `git stash apply`.
 - Resolved merge conflict in `mobile/src/app/wagers/create.tsx` safely keeping both `useSafeAreaInsets` and `useAdVisibility`/`useRewardedAd` hooks.
 - All stashed files confirmed present and successfully merged into the current working directory without dropping the stash backup.
+
+## Known Test Limitations
+
+- `test_game_loop.py` and `test_scoring_unlimited.py` previously contained duplicated stale JWT fixtures;
+- they now use the shared conftest fixtures;
+- their legacy route paths were corrected to the currently registered `/api/v1` routes;
+- the remaining gameplay assertions are stale relative to the current implementation:
+  - round `ends_at` may be `None` under the tested legacy scenario;
+  - processed attempts currently return `"submitted"` rather than `"in_progress"`;
+- these remaining assertion failures are unrelated to rewarded-ad monetization and have intentionally not been changed in this feature.
